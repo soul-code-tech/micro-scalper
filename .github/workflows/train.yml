@@ -13,7 +13,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11.9"
+          python-version: "3.12.7"          # ← здесь
 
       - run: pip install -r requirements.txt
 
@@ -33,7 +33,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-          export GITHUB_REPOSITORY="${{ github.repository }}"
-          python scripts/upload_weights.py
+        run: ${{ env.pythonLocation }}/bin/python scripts/upload_weights.py
