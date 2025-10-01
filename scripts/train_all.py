@@ -4,14 +4,12 @@ import sys
 import asyncio
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from cli import train_one   # используем вашу asyncio-функцию
+from cli import train_one   # ваш asyncio train_one
 
-SYMBOLS = [
-    "BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT"
-]
+SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT"]
 
 async def main():
-    print("🚀 Запуск дообучения моделей (каждые 2 часа)")
+    print("🚀 Запуск дообучения моделей (15-мин, каждые 2 часа)")
     os.makedirs("weights", exist_ok=True)
 
     for symbol in SYMBOLS:
