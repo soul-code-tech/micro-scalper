@@ -30,4 +30,5 @@ jobs:
       - name: Push weights to branch weights
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}   # явно прокидываем
         run: python scripts/upload_weights.py
