@@ -1,181 +1,114 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Quantum-Scalper 1-min
-- async BingX
-- Kelly-size 0.25×
-- max-drawdown-stop 5 %
-- health-endpoint for UptimeRobot
-"""
-
+import numpy as np
+import pandas as pd
 import os
-import sys
-import signal
-import asyncio
-import logging
-from datetime import datetime
+import tensorflow as tf
+from sklearn.preprocessing import MinMaxScaler
+import pickle
 
-from exchange import BingXAsync
-from strategy import micro_score
-from risk import calc, max_drawdown_stop
-from lstm_micro import predict_ensemble
-from store import cache
-from health import run_web
-from settings import CONFIG
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(message)s",
-    datefmt="%H:%M:%S",
-)
-log = logging.getLogger("scalper")
-
-POS: dict[str, dict] = {}          # symbol -> {side, qty, entry, sl, tp, part, oid}
-PEAK_BALANCE: float = 0.0          # высокая вода
+log = logging.getLogger("lstm")
 
 
-# ---------- helpers ----------
-def human_float(n: float) -> str:
-    return f"{n:.5f}".rstrip("0").rstrip(".") if n > 0.01 else f"{n:.7f}"
+class MicroLSTM:
+    def __init__(self, lookback=60):
+        self.lb = lookback
+        self.model = None
+        self.scaler = MinMaxScaler()
+
+    # ---------- build ----------
+    def build(self):
+        self.model = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=(self.lb, 5)),
+            tf.keras.layers.LSTM(32, return_sequences=True),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.LSTM(16),
+            tf.keras.layers.Dense(1, activation="sigmoid")
+        ])
+        self.model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
+
+    # ---------- train ----------
+    def train(self, klines: list, epochs=3, symbol="SYM"):
+        df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
+        atr_pc = (df["h"] - df["l"]).div(df["c"]).mean()
+        if atr_pc < 0.0015:
+            raise ValueError(f"low volatility {symbol}")
+
+        feat = df[["o", "h", "l", "c", "v"]].values
+        scaled = self.scaler.fit_transform(feat)
+
+        X, y = [], []
+        for i in range(self.lb, len(scaled) - 1):
+            X.append(scaled[i - self.lb:i])
+            y.append(1.0 if scaled[i + 1, 3] > scaled[i, 3] else 0.0)
+
+        y = np.array(y)
+        if len(np.unique(y)) < 2:
+            raise ValueError(f"single class {symbol}")
+
+        X = np.array(X).reshape((len(X), self.lb, 5))
+        self.model.fit(X, y, epochs=epochs, batch_size=32, verbose=0)
+
+    # ---------- predict ----------
+    def predict(self, klines: list) -> float:
+        df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
+        feat = df[["o", "h", "l", "c", "v"]].values
+        scaled = self.scaler.transform(feat)
+        last = scaled[-self.lb:].reshape(1, self.lb, 5)
+        return float(self.model.predict(last, verbose=0)[0, 0])
 
 
-# ---------- position management ----------
-async def manage(ex: BingXAsync, sym: str, api_pos: dict):
-    pos = POS.get(sym)
-    if not pos:
-        return
-    mark = float(api_pos["markPrice"])
-    side = pos["side"]
+class LSTMEnsemble:
+    def __init__(self):
+        self.model1 = MicroLSTM(60)
+        self.model2 = MicroLSTM(120)
 
-    # stop-loss
-    if (side == "LONG" and mark <= pos["sl"]) or (side == "SHORT" and mark >= pos["sl"]):
-        await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["qty"])
-        POS.pop(sym)
-        log.info("🛑 %s stopped at %s", sym, human_float(mark))
-        return
+    def build_models(self):
+        self.model1.build()
+        self.model2.build()
 
-    # partial at 1R
-    risk_dist = abs(pos["entry"] - pos["sl"])
-    tp_1r = pos["entry"] + risk_dist if side == "LONG" else pos["entry"] - risk_dist
-    if (side == "LONG" and mark >= tp_1r) or (side == "SHORT" and mark <= tp_1r):
-        await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["part"])
-        log.info("💰 %s partial %.3f at %s", sym, pos["part"], human_float(mark))
-        # move SL to breakeven
-        pos["sl"] = pos["entry"]
-
-
-# ---------- guard ----------
-async def guard(entry: float, side: str, book: dict) -> bool:
-    bid, ask = float(book["bids"][0][0]), float(book["asks"][0][0])
-    spread = (ask - bid) / bid
-    if spread > CONFIG.MAX_SPREAD:
-        log.warning("SKIP %s – wide spread %.3f", sym, spread)
-        return False
-    slippage = (entry - ask) / ask if side == "LONG" else (bid - entry) / bid
-    if slippage > CONFIG.MAX_SLIPPAGE:
-        log.warning("SKIP %s – bad slippage %.3f", sym, slippage)
-        return False
-    return True
-
-
-# ---------- main loop ----------
-async def trade_loop(ex: BingXAsync):
-    global PEAK_BALANCE
-    while True:
+    def train(self, klines: list, epochs=3, symbol="SYM"):
         try:
-            equity = float((await ex.balance())["data"]["balance"])
-        except Exception as e:
-            log.error("Balance fetch: %s", e)
-            await asyncio.sleep(5)
-            continue
+            self.model1.train(klines, epochs, symbol)
+            self.model2.train(klines, epochs, symbol)
+        except ValueError as e:
+            log.warning(e)
+            return
+        self.is_trained = True
 
-        # init peak
-        if PEAK_BALANCE == 0:
-            PEAK_BALANCE = equity
-        # max-drawdown stop
-        if max_drawdown_stop(equity, PEAK_BALANCE):
-            log.error("🛑 Max drawdown reached – trading paused")
-            await asyncio.sleep(60)
-            continue
-        if equity > PEAK_BALANCE:
-            PEAK_BALANCE = equity
+    def predict_proba(self, klines: list) -> float:
+        p1 = self.model1.predict(klines)
+        p2 = self.model2.predict(klines)
+        return (p1 + p2) / 2.0
 
-        cache.set("balance", equity)
+    def save(self, path: str):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        self.model1.model.save_weights(path.replace(".pkl", ".m1.weights.h5"))
+        self.model2.model.save_weights(path.replace(".pkl", ".m2.weights.h5"))
+        with open(path, "wb") as f:
+            pickle.dump({"scaler1": self.model1.scaler, "scaler2": self.model2.scaler}, f)
 
-        # активные позиции BingX
-        try:
-            api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
-        except Exception as e:
-            log.error("Positions fetch: %s", e)
-            await asyncio.sleep(5)
-            continue
-
-        for sym in CONFIG.SYMBOLS:
-            pos = api_pos.get(sym)
-            if pos and float(pos["positionAmt"]) != 0:
-                await manage(ex, sym, pos)
-                continue
-            if len(POS) >= CONFIG.MAX_POS:
-                continue
-
-            # данные
-            try:
-                klines = await ex.klines(sym, CONFIG.TIMEFRAME, 150)
-                book   = await ex.order_book(sym, 5)
-            except Exception as e:
-                log.warning("Data %s: %s", sym, e)
-                continue
-
-            score  = micro_score(klines)
-            atr_pc = score["atr_pc"]
-            if atr_pc < CONFIG.MIN_ATR_PC:
-                continue
-
-            px = float(book["asks"][0][0]) if score["long"] > score["short"] else float(book["bids"][0][0])
-            vol_usd = float(klines[-1][5]) * px
-            if vol_usd < CONFIG.MIN_VOL_USD_1m:
-                continue
-
-            lstm_prob = predict_ensemble(klines)
-            side = ("LONG" if lstm_prob > CONFIG.PROBA_LONG else
-                    "SHORT" if lstm_prob < CONFIG.PROBA_SHORT else None)
-            if not side or not await guard(px, side, book):
-                continue
-
-            sizing = calc(px, atr_pc * px, side, equity)
-            if sizing.size <= 0:
-                continue
-
-            order = await ex.place_order(sym, side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
-            if order and order["code"] == 0:
-                oid = order["data"]["orderId"]
-                POS[sym] = dict(side=side, qty=sizing.size, entry=px,
-                                sl=sizing.sl_px, tp=sizing.tp_px,
-                                part=sizing.partial_qty, oid=oid)
-                log.info("📨 %s %s %.3f @ %s  SL=%s  TP=%s",
-                         sym, side, sizing.size, human_float(px),
-                         human_float(sizing.sl_px), human_float(sizing.tp_px))
+    @classmethod
+    def load(cls, path: str):
+        m1_path = path.replace(".pkl", ".m1.weights.h5")
+        m2_path = path.replace(".pkl", ".m2.weights.h5")
+        if not (os.path.exists(path) and os.path.exists(m1_path) and os.path.exists(m2_path)):
+            return None
+        obj = cls()
+        obj.build_models()
+        obj.model1.model.load_weights(m1_path)
+        obj.model2.model.load_weights(m2_path)
+        with open(path, "rb") as f:
+            bundle = pickle.load(f)
+        obj.model1.scaler = bundle["scaler1"]
+        obj.model2.scaler = bundle["scaler2"]
+        obj.is_trained = True
+        return obj
 
 
-        await asyncio.sleep(1)
-
-
-# ---------- graceful shutdown ----------
-def shutdown(sig, frame):
-    log.info("⏹️  SIGTERM/SIGINT – shutting down")
-    sys.exit(0)
-
-
-# ---------- entry ----------
-async def main():
-    # фоновый веб-сервер для UptimeRobot
-    asyncio.create_task(asyncio.to_thread(run_web))
-
-    async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
-        await trade_loop(ex)
-
-
-if __name__ == "__main__":
-    signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
-    asyncio.run(main())
+# ---------- глобальная обёртка для main.py ----------
+def predict_ensemble(klines: list) -> float:
+    """Вероятность роста цены через 1 бар (0-1)."""
+    model = LSTMEnsemble.load("weights/BTCUSDT.pkl")
+    if not model:
+        return 0.5  # нейтрально, если весов нет
+    return model.predict_proba(klines)
