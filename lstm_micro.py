@@ -5,6 +5,7 @@ import os
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 import pickle
+import logging   # ← добавьте эту строку
 
 log = logging.getLogger("lstm")
 
