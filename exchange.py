@@ -27,8 +27,12 @@ class BingXAsync:
         url = f"{self.base}{path}?{query}&signature={signature}"
         async with self.sess.request(method, url) as r:
             r.raise_for_status()
-            return await r.json()
+            js = await r.json()
+            if js.get("code", 0) != 0:
+                raise RuntimeError(f"BingX error: {js}")
+            return js
 
+    # ---------- остальные методы без изменений ----------
     async def klines(self, symbol: str, interval: str = "1m", limit: int = 150):
         path = "/openApi/swap/v2/quote/klines"
         data = await self._request("GET", path, {"symbol": symbol, "interval": interval, "limit": limit})
