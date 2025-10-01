@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Quantum-Scalper 1-min
+Quantum-Scalper 15-min
 - async BingX
-- Kelly-size 0.25×
+- Kelly 0.25×
 - max-drawdown-stop 5 %
-- health-endpoint for UptimeRobot
+- всё в логах, без GUI/файлов
 """
 
 import os
@@ -18,7 +18,7 @@ from datetime import datetime
 from exchange import BingXAsync
 from strategy import micro_score
 from risk import calc, max_drawdown_stop
-from lstm_micro import predict_ensemble   # ← теперь есть
+from lstm_micro import predict_ensemble
 from store import cache
 from health import run_web
 from settings import CONFIG
@@ -132,7 +132,7 @@ async def trade_loop(ex: BingXAsync):
 
             px = float(book["asks"][0][0]) if score["long"] > score["short"] else float(book["bids"][0][0])
             vol_usd = float(klines[-1][5]) * px
-            if vol_usd < CONFIG.MIN_VOL_USD_1m:
+            if vol_usd < CONFIG.MIN_VOL_USD_15m:
                 continue
 
             lstm_prob = predict_ensemble(klines)
