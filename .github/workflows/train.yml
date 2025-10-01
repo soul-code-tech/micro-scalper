@@ -23,4 +23,6 @@ jobs:
         run: python scripts/train_all.py
 
       - name: Push weights to branch weights
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/upload_weights.py
