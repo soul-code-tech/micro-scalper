@@ -1,44 +1,40 @@
 #!/usr/bin/env python3
-import os, shutil, subprocess, time
+import os
+import subprocess
+import sys
 
-WEIGHTS_DIR = "weights"
-BRANCH      = "weights"
-TOKEN       = os.getenv('GITHUB_TOKEN')
-REPO        = os.getenv('GITHUB_REPOSITORY')
+# прокидываем переменные из окружения
+os.environ["GITHUB_TOKEN"] = os.getenv("GITHUB_TOKEN", "")
+os.environ["GITHUB_REPOSITORY"] = os.getenv("GITHUB_REPOSITORY", "")
 
-# GitHub Actions всегда задаёт эти переменные – если нет, выходим мягко
-if not (TOKEN and REPO):
+if not (os.environ["GITHUB_TOKEN"] and os.environ["GITHUB_REPOSITORY"]):
     print("⚠️  GITHUB_TOKEN или GITHUB_REPOSITORY не заданы – пропускаем пуш")
-    exit(0)
+    sys.exit(0)
 
-REMOTE = f"https://x-access-token:{TOKEN}@github.com/{REPO}.git"
+REMOTE = f"https://x-access-token:{os.environ['GITHUB_TOKEN']}@github.com/{os.environ['GITHUB_REPOSITORY']}.git"
+
 
 def run(cmd):
     print(">>>", cmd)
     subprocess.run(cmd, shell=True, check=True)
 
+
 def main():
-    if not os.path.exists(WEIGHTS_DIR):
+    if not os.path.exists("weights"):
         print("No weights to upload")
         return
 
-    tmp = f"weights_clone_{int(time.time())}"
-    # клонируем ветку weights (если есть) или весь репо
-    run(f"git clone --branch {BRANCH} --single-branch {REMOTE} {tmp} 2>/dev/null || git clone --single-branch {REMOTE} {tmp}")
-
-    # копируем свежие веса
-    for f in os.listdir(WEIGHTS_DIR):
-        if f.endswith((".weights.h5", ".pkl")):
-            shutil.copy(os.path.join(WEIGHTS_DIR, f), tmp)
-
+    tmp = f"weights_clone_{os.getpid()}"
+    run(f"git clone --branch weights --single-branch {REMOTE} {tmp} 2>/dev/null || git clone --single-branch {REMOTE} {tmp}")
+    run(f"cp -r weights/* {tmp}/ 2>/dev/null || true")
     os.chdir(tmp)
     run("git config user.name 'github-actions[bot]'")
     run("git config user.email '41898282+github-actions[bot]@users.noreply.github.com'")
     run("git add .")
-    run("git diff --cached --quiet || git commit -m '🤖 Retrain weights'")
-    run("git push origin weights")
+    run("git diff --cached --quiet || (git commit -m '🤖 Retrain (15m walk-forward)' && git push origin weights)")
     os.chdir("..")
-    shutil.rmtree(tmp)
+    subprocess.run(["rm", "-rf", tmp])
+
 
 if __name__ == "__main__":
     main()
