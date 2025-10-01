@@ -22,6 +22,11 @@ jobs:
           BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
         run: python scripts/train_all.py
 
+      - name: Check GitHub env
+        run: |
+          echo "TOKEN=${{ secrets.GITHUB_TOKEN }}"
+          echo "REPO=$GITHUB_REPOSITORY"
+
       - name: Push weights to branch weights
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
