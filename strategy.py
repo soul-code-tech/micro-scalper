@@ -20,17 +20,17 @@ def micro_score(klines: list) -> dict:
     rsi_val = rsi(c, 14)
     atr_val = atr(df, 14)
     atr_pc = atr_val / c.iloc[-1]
-    ema9 = c.ewm(span=9).mean().iloc[-1]
+    ema9  = c.ewm(span=9).mean().iloc[-1]
     ema21 = c.ewm(span=21).mean().iloc[-1]
     vol_sma = df["v"].rolling(20).mean().iloc[-1]
     vol_ratio = df["v"].iloc[-1] / (vol_sma + 1e-8)
 
     long_score = 0.0
-    if 45 < rsi_val < 65 and c.iloc[-1] > ema9 > ema21 and vol_ratio > 1.2 and atr_pc >= 0.0008:
+    if 45 < rsi_val < 65 and c.iloc[-1] > ema9 > ema21 and vol_ratio > 1.0 and atr_pc >= 0.0004:
         long_score = min(1.0, vol_ratio / 3)
 
     short_score = 0.0
-    if 35 < rsi_val < 55 and c.iloc[-1] < ema9 < ema21 and vol_ratio > 1.2 and atr_pc >= 0.0008:
+    if 35 < rsi_val < 55 and c.iloc[-1] < ema9 < ema21 and vol_ratio > 1.0 and atr_pc >= 0.0004:
         short_score = min(1.0, vol_ratio / 3)
 
     return {"long": long_score, "short": short_score, "atr_pc": atr_pc}
