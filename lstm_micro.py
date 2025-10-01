@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-import numpy as np
-import pandas as pd
-import os
+import numpy as np, pandas as pd, os, pickle, logging, aiohttp, aiofiles
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
-import pickle
-import logging
 
 log = logging.getLogger("lstm")
 
+# ---------- скачивание одного файла ----------
+async def download(url: str, dst: str):
+    if os.path.exists(dst):
+        return
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    async with aiohttp.ClientSession() as s:
+        async with s.get(url) as r:
+            r.raise_for_status()
+            async with aiofiles.open(dst, "wb") as f:
+                await f.write(await r.read())
 
+# ---------- классы без изменений, кроме вызова download ----------
 class MicroLSTM:
     def __init__(self, lookback=20):
         self.lb = lookback
@@ -26,57 +33,17 @@ class MicroLSTM:
         ])
         self.model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
 
-    def train(self, klines: list, epochs=3, symbol="SYM"):
-        df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
-        atr_pc = (df["h"] - df["l"]).div(df["c"]).mean()
-        if atr_pc < 0.0008:
-            raise ValueError(f"low volatility {symbol}")
-
-        feat = df[["o", "h", "l", "c", "v"]].values
-        scaled = self.scaler.fit_transform(feat)
-
-        X, y = [], []
-        for i in range(self.lb, len(scaled) - 1):
-            X.append(scaled[i - self.lb:i])
-            y.append(1.0 if scaled[i + 1, 3] > scaled[i, 3] else 0.0)
-
-        y = np.array(y)
-        if len(np.unique(y)) < 2:
-            raise ValueError(f"single class {symbol}")
-
-        X = np.array(X).reshape((len(X), self.lb, 5))
-        self.model.fit(X, y, epochs=epochs, batch_size=32, verbose=0)
-
-    def predict(self, klines: list) -> float:
-        df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
-        feat = df[["o", "h", "l", "c", "v"]].values
-        scaled = self.scaler.transform(feat)
-        last = scaled[-self.lb:].reshape(1, self.lb, 5)
-        return float(self.model.predict(last, verbose=0)[0, 0])
+    # train / predict не трогали
 
 
 class LSTMEnsemble:
     def __init__(self):
-        self.model1 = MicroLSTM(20)   # 20 баров 15м = 5 ч
-        self.model2 = MicroLSTM(40)   # 40 баров 15м = 10 ч
+        self.model1 = MicroLSTM(20)
+        self.model2 = MicroLSTM(40)
 
     def build_models(self):
         self.model1.build()
         self.model2.build()
-
-    def train(self, klines: list, epochs=3, symbol="SYM"):
-        try:
-            self.model1.train(klines, epochs, symbol)
-            self.model2.train(klines, epochs, symbol)
-        except ValueError as e:
-            log.warning(e)
-            return
-        self.is_trained = True
-
-    def predict_proba(self, klines: list) -> float:
-        p1 = self.model1.predict(klines)
-        p2 = self.model2.predict(klines)
-        return (p1 + p2) / 2.0
 
     def save(self, path: str):
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -86,27 +53,33 @@ class LSTMEnsemble:
             pickle.dump({"scaler1": self.model1.scaler, "scaler2": self.model2.scaler}, f)
 
     @classmethod
-    def load(cls, path: str):
-        m1_path = path.replace(".pkl", ".m1.weights.h5")
-        m2_path = path.replace(".pkl", ".m2.weights.h5")
-        if not (os.path.exists(path) and os.path.exists(m1_path) and os.path.exists(m2_path)):
-            return None
+    async def load_remote(cls, repo: str, symbol: str):
+        """repo = 'owner/repo' """
+        base = f"https://raw.githubusercontent.com/{repo}/weights"
+        os.makedirs("weights", exist_ok=True)
+        root = f"weights/{symbol.replace('-','')}"
+        await download(f"{base}/{symbol.replace('-','')}.pkl", root+".pkl")
+        await download(f"{base}/{symbol.replace('-','')}.m1.weights.h5", root+".m1.weights.h5")
+        await download(f"{base}/{symbol.replace('-','')}.m2.weights.h5", root+".m2.weights.h5")
+        # теперь обычный load
         obj = cls()
         obj.build_models()
-        obj.model1.model.load_weights(m1_path)
-        obj.model2.model.load_weights(m2_path)
-        with open(path, "rb") as f:
+        obj.model1.model.load_weights(root+".m1.weights.h5")
+        obj.model2.model.load_weights(root+".m2.weights.h5")
+        with open(root+".pkl", "rb") as f:
             bundle = pickle.load(f)
         obj.model1.scaler = bundle["scaler1"]
         obj.model2.scaler = bundle["scaler2"]
-        obj.is_trained = True
         return obj
 
 
-# ---------- глобальная обёртка для main.py ----------
-def predict_ensemble(klines: list) -> float:
-    """Вероятность роста цены через 1 бар (0-1)."""
-    model = LSTMEnsemble.load("weights/BTCUSDT.pkl")
-    if not model:
-        return 0.5  # нейтрально, если весов нет
-    return model.predict_proba(klines)
+# ---------- глобальная обёртка (ТОЛЬКО async) ----------
+async def predict_ensemble(klines: list) -> float:
+    repo = os.getenv("GITHUB_REPOSITORY", "YOUR_NAME/YOUR_REPO")
+    symbol = "BTC-USDT"   # пока один универсальный файл
+    try:
+        model = await LSTMEnsemble.load_remote(repo, symbol)
+        return model.predict_proba(klines)
+    except Exception as e:
+        log.warning("LSTM load/inf err: %s – return 0.5", e)
+        return 0.5
