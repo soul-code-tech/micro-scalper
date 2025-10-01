@@ -1,0 +1,30 @@
+name: Retrain micro-models every 2h
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"   # каждые 2 часа
+  workflow_dispatch:        # ручной запуск
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.7"
+
+      - run: pip install -r requirements.txt
+
+      - name: Train or retrain models
+        env:
+          BINGX_API_KEY:  ${{ secrets.BINGX_API_KEY }}
+          BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
+        run: python scripts/train_all.py
+
+      - name: Push weights to branch weights
+        run: python scripts/upload_weights.py
