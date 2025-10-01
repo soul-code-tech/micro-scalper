@@ -1,14 +1,8 @@
 aiohttp>=3.9
 ccxt==4.2.75
-tensorflow==2.15.0
+tensorflow==2.16.1      # единственная строка TF
 flask==3.0.3
 pandas==2.2.2
 numpy==1.26.4
 TA-Lib==0.4.28
-aiohttp>=3.9
-ccxt==4.2.75
-tensorflow==2.16.1      # ← актуальная версия
-flask==3.0.3
-pandas==2.2.2
-numpy==1.26.4
 scikit-learn==1.5.2
