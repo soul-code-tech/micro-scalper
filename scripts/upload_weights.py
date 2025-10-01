@@ -6,7 +6,8 @@ BRANCH      = "weights"
 TOKEN       = os.getenv('GITHUB_TOKEN')
 REPO        = os.getenv('GITHUB_REPOSITORY')
 
-if not TOKEN or not REPO:
+# GitHub Actions всегда задаёт эти переменные – если нет, выходим мягко
+if not (TOKEN and REPO):
     print("⚠️  GITHUB_TOKEN или GITHUB_REPOSITORY не заданы – пропускаем пуш")
     exit(0)
 
@@ -22,8 +23,10 @@ def main():
         return
 
     tmp = f"weights_clone_{int(time.time())}"
+    # клонируем ветку weights (если есть) или весь репо
     run(f"git clone --branch {BRANCH} --single-branch {REMOTE} {tmp} 2>/dev/null || git clone --single-branch {REMOTE} {tmp}")
 
+    # копируем свежие веса
     for f in os.listdir(WEIGHTS_DIR):
         if f.endswith((".weights.h5", ".pkl")):
             shutil.copy(os.path.join(WEIGHTS_DIR, f), tmp)
