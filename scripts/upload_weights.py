@@ -2,14 +2,15 @@
 import os, shutil, subprocess, time
 
 WEIGHTS_DIR = "weights"
-BRANCH = "weights"
-# Берем токен и репозиторий из env-переменных GitHub Actions
-token = os.getenv('GITHUB_TOKEN')
-repo  = os.getenv('GITHUB_REPOSITORY')
-if not token or not repo:
-    raise RuntimeError("GITHUB_TOKEN и GITHUB_REPOSITORY должны быть заданы")
+BRANCH      = "weights"
+TOKEN       = os.getenv('GITHUB_TOKEN')
+REPO        = os.getenv('GITHUB_REPOSITORY')
 
-REMOTE = f"https://x-access-token:{token}@github.com/{repo}.git"
+if not TOKEN or not REPO:
+    print("⚠️  GITHUB_TOKEN или GITHUB_REPOSITORY не заданы – пропускаем пуш")
+    exit(0)
+
+REMOTE = f"https://x-access-token:{TOKEN}@github.com/{REPO}.git"
 
 def run(cmd):
     print(">>>", cmd)
@@ -21,10 +22,8 @@ def main():
         return
 
     tmp = f"weights_clone_{int(time.time())}"
-    # клонируем ветку weights (если есть) либо весь репо
     run(f"git clone --branch {BRANCH} --single-branch {REMOTE} {tmp} 2>/dev/null || git clone --single-branch {REMOTE} {tmp}")
 
-    # копируем свежие веса
     for f in os.listdir(WEIGHTS_DIR):
         if f.endswith((".weights.h5", ".pkl")):
             shutil.copy(os.path.join(WEIGHTS_DIR, f), tmp)
