@@ -175,5 +175,5 @@ async def main():
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM", shutdown)
+    signal.signal(signal.SIGTERM, shutdown)
     asyncio.run(main())
