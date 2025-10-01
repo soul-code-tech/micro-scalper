@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write  # ← чтобы можно было пушить ветку weights
 
 jobs:
   train:
@@ -13,6 +13,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: actions/setup-python@v5
         with:
@@ -20,13 +22,25 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Train models
-        env:
+      # ШАГ 1: обучаем модели (в ветке main)
+      - env:
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
         run: ${{ env.pythonLocation }}/bin/python scripts/train_all.py
 
-      - name: Push weights to branch weights
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ${{ env.pythonLocation }}/bin/python scripts/upload_weights.py
+      # ШАГ 2: клонируем ветку weights и копируем туда веса
+      - run: |
+          git clone --branch weights --single-branch \
+            https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git \
+            weights-branch || git clone --single-branch \
+            https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git \
+            weights-branch
+          cp -r weights/* weights-branch/ 2>/dev/null || true
+          cd weights-branch
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          if ! git diff --cached --quiet; then
+            git commit -m "🤖 Retrain (2h walk-forward)"
+            git push origin weights
+          fi
