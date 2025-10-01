@@ -10,6 +10,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.9"
@@ -20,15 +21,16 @@ jobs:
         env:
           BINGX_API_KEY:  ${{ secrets.BINGX_API_KEY }}
           BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
-        run: python scripts/train_all.py
+        run: ${{ env.pythonLocation }}/bin/python scripts/train_all.py
 
-      - name: Check GitHub env
+      - name: Debug env
         run: |
-          echo "TOKEN=${{ secrets.GITHUB_TOKEN }}"
-          echo "REPO=$GITHUB_REPOSITORY"
+          echo "Python: $(${{ env.pythonLocation }}/bin/python --version)"
+          echo "TOKEN present: ${{ secrets.GITHUB_TOKEN != '' }}"
+          echo "REPO: $GITHUB_REPOSITORY"
 
       - name: Push weights to branch weights
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}   # явно прокидываем
-        run: python scripts/upload_weights.py
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: ${{ env.pythonLocation }}/bin/python scripts/upload_weights.py
