@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # ← чтобы можно было пушить ветку weights
+  contents: write
 
 jobs:
   train:
@@ -29,5 +29,4 @@ jobs:
       - name: Push weights to branch weights
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
         run: ${{ env.pythonLocation }}/bin/python scripts/upload_weights.py
