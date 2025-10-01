@@ -18,7 +18,15 @@ def health():
     try:
         async def bal():
             async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
-                return float((await ex.balance())["data"]["balance"])
+                info = await ex.balance()
+                # надёжный парсинг: может быть {"data": "123.45"} или {"data": {"balance": "123.45"}}
+                data = info.get("data", "0")
+                if isinstance(data, dict):
+                    balance_str = str(data.get("balance", "0"))
+                else:
+                    balance_str = str(data)
+                return float(balance_str) if balance_str.replace(".", "").isdigit() else 0.0
+
         equity = asyncio.run(bal())
         return jsonify(
             status="ok",
