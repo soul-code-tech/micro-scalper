@@ -1,8 +1,8 @@
 aiohttp>=3.9
 ccxt==4.2.75
-tensorflow==2.16.1      # единственная строка TF
+tensorflow==2.16.1
 flask==3.0.3
 pandas==2.2.2
 numpy==1.26.4
-TA-Lib==0.4.28
+https://github.com/rgerganov/ta-lib-wheel/releases/download/0.4.28/ta_lib-0.4.28-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 scikit-learn==1.5.2
