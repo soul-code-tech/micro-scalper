@@ -1,9 +1,8 @@
 name: Retrain micro-models every 2h
-
 on:
   schedule:
-    - cron: "0 */2 * * *"   # каждые 2 часа
-  workflow_dispatch:        # ручной запуск
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
 
 jobs:
   train:
@@ -11,16 +10,13 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
-
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12.7"
+          python-version: "3.11.9"
 
       - run: pip install -r requirements.txt
 
-      - name: Train or retrain models
+      - name: Train models
         env:
           BINGX_API_KEY:  ${{ secrets.BINGX_API_KEY }}
           BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
