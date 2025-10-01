@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 import os, time, asyncio
 from exchange import BingXAsync
 from store import Cache
+from settings import CONFIG   # ← добавьте эту строку
 
 app = Flask(__name__)
 START = time.time()
