@@ -5,18 +5,17 @@ import os
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 import pickle
-import logging   # ← добавьте эту строку
+import logging
 
 log = logging.getLogger("lstm")
 
 
 class MicroLSTM:
-    def __init__(self, lookback=60):
+    def __init__(self, lookback=20):
         self.lb = lookback
         self.model = None
         self.scaler = MinMaxScaler()
 
-    # ---------- build ----------
     def build(self):
         self.model = tf.keras.Sequential([
             tf.keras.layers.Input(shape=(self.lb, 5)),
@@ -27,11 +26,10 @@ class MicroLSTM:
         ])
         self.model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
 
-    # ---------- train ----------
     def train(self, klines: list, epochs=3, symbol="SYM"):
         df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
         atr_pc = (df["h"] - df["l"]).div(df["c"]).mean()
-        if atr_pc < 0.0015:
+        if atr_pc < 0.0008:
             raise ValueError(f"low volatility {symbol}")
 
         feat = df[["o", "h", "l", "c", "v"]].values
@@ -49,7 +47,6 @@ class MicroLSTM:
         X = np.array(X).reshape((len(X), self.lb, 5))
         self.model.fit(X, y, epochs=epochs, batch_size=32, verbose=0)
 
-    # ---------- predict ----------
     def predict(self, klines: list) -> float:
         df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
         feat = df[["o", "h", "l", "c", "v"]].values
@@ -60,8 +57,8 @@ class MicroLSTM:
 
 class LSTMEnsemble:
     def __init__(self):
-        self.model1 = MicroLSTM(60)
-        self.model2 = MicroLSTM(120)
+        self.model1 = MicroLSTM(20)   # 20 баров 15м = 5 ч
+        self.model2 = MicroLSTM(40)   # 40 баров 15м = 10 ч
 
     def build_models(self):
         self.model1.build()
