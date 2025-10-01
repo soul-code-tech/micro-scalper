@@ -4,6 +4,9 @@ on:
     - cron: "0 */2 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: write  # ← чтобы можно было пушить ветку weights
+
 jobs:
   train:
     runs-on: ubuntu-latest
@@ -13,21 +16,15 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12.7"          # ← здесь
+          python-version: "3.12.7"
 
       - run: pip install -r requirements.txt
 
       - name: Train models
         env:
-          BINGX_API_KEY:  ${{ secrets.BINGX_API_KEY }}
+          BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
         run: ${{ env.pythonLocation }}/bin/python scripts/train_all.py
-
-      - name: Debug env
-        run: |
-          echo "Python: $(${{ env.pythonLocation }}/bin/python --version)"
-          echo "TOKEN present: ${{ secrets.GITHUB_TOKEN != '' }}"
-          echo "REPO: $GITHUB_REPOSITORY"
 
       - name: Push weights to branch weights
         env:
