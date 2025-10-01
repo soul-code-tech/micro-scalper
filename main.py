@@ -5,6 +5,7 @@ Quantum-Scalper 15-min
 - async BingX
 - Kelly 0.25×
 - max-drawdown-stop 5 %
+- мини-анализ в реальном времени
 - всё в логах, без GUI/файлов
 """
 
@@ -62,6 +63,35 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
         log.info("💰 %s partial %.3f at %s", sym, pos["part"], human_float(mark))
         # move SL to breakeven
         pos["sl"] = pos["entry"]
+
+
+# ---------- мини-анализ в реальном времени ----------
+async def mini_analyze(ex: BingXAsync, sym: str, mark: float, score: dict):
+    try:
+        # --- текущий тренд ---
+        klines = await ex.klines(sym, "15m", 21)          # 21 бар = 5.25 ч
+        c = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"])["c"].astype(float)
+        ema9_cur = c.ewm(span=9).mean().iloc[-1]
+        ema21_cur = c.ewm(span=21).mean().iloc[-1]
+        trend = "UP" if ema9_cur > ema21_cur else "DOWN"
+
+        # --- PnL по открытым позам ---
+        pnl_usd = 0.0
+        pos = POS.get(sym)
+        if pos:
+            pnl = (mark - pos["entry"]) if pos["side"] == "LONG" else (pos["entry"] - mark)
+            pnl_usd += pnl * pos["qty"]
+
+        # --- совпадение сигнала с трендом ---
+        signal_dir = "LONG" if score["long"] > score["short"] else "SHORT"
+        match = "✅" if (signal_dir == "LONG" and trend == "UP") or (signal_dir == "SHORT" and trend == "DOWN") else "❌"
+
+        # --- вывод ---
+        log.info("📊 %s | trend=%s signal=%s match=%s PnL=%.2f$ mark=%s",
+                 sym, trend, signal_dir, match, pnl_usd, human_float(mark))
+
+    except Exception as e:
+        log.warning("📊 skip mini-analyze %s – %s", sym, e)
 
 
 # ---------- guard ----------
@@ -155,6 +185,31 @@ async def trade_loop(ex: BingXAsync):
                          sym, side, sizing.size, human_float(px),
                          human_float(sizing.sl_px), human_float(sizing.tp_px))
 
+        # ---------- мини-анализ в реальном времени ----------
+        try:
+            # --- текущий тренд ---
+            ema9_cur = c.ewm(span=9).mean().iloc[-1]
+            ema21_cur = c.ewm(span=21).mean().iloc[-1]
+            trend = "UP" if ema9_cur > ema21_cur else "DOWN"
+
+            # --- PnL по открытым позам ---
+            pnl_usd = 0.0
+            pos = POS.get(sym)
+            if pos:
+                pnl = (mark - pos["entry"]) if pos["side"] == "LONG" else (pos["entry"] - mark)
+                pnl_usd += pnl * pos["qty"]
+
+            # --- совпадение сигнала с трендом ---
+            signal_dir = "LONG" if score["long"] > score["short"] else "SHORT"
+            match = "✅" if (signal_dir == "LONG" and trend == "UP") or (signal_dir == "SHORT" and trend == "DOWN") else "❌"
+
+            # --- вывод ---
+            log.info("📊 %s | trend=%s signal=%s match=%s PnL=%.2f$ mark=%s",
+                     sym, trend, signal_dir, match, pnl_usd, human_float(mark))
+
+        except Exception as e:
+            log.warning("📊 skip mini-analyze %s – %s", sym, e)
+
         await asyncio.sleep(1)
 
 
@@ -175,5 +230,5 @@ async def main():
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGTERM", shutdown)
     asyncio.run(main())
