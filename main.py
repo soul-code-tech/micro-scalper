@@ -19,30 +19,19 @@ import signal
 import asyncio
 import logging
 import time
-import traceback, sys
-print("=== DEBUG: starting main ===")
-try:
-    # ====== ИМПОРТЫ ======
-    from exchange import BingXAsync
-    print("✅ exchange")
-    from strategy import micro_score
-    print("✅ strategy")
-    from risk import calc, max_drawdown_stop
-    print("✅ risk")
-    from store import cache
-    print("✅ store")
-    from health import run_web
-    print("✅ health")
-    from settings import CONFIG
-    print("✅ settings")
-    from tf_selector import best_timeframe
-    print("✅ tf_selector")
-    # ====== /ИМПОРТЫ ======
-except Exception as e:
-    print("CRASH on import:", e, file=sys.stderr)
-    traceback.print_exc()
-    sys.exit(1)
-# ---------------------------
+import traceback
+
+from exchange import BingXAsync
+from strategy import micro_score
+from risk import calc, max_drawdown_stop
+from store import cache
+from health import run_web
+from settings import CONFIG
+from tf_selector import best_timeframe
+
+# ------------------ временный трейс ------------------
+print("=== DEBUG: импорты завершены ===")
+# -----------------------------------------------------
 
 logging.basicConfig(
     level=logging.INFO,
@@ -188,3 +177,64 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
                  sym, side, sizing.size, human_float(px),
                  human_float(sizing.sl_px), human_float(sizing.tp_px))
+
+
+# ---------- основной цикл ----------
+async def trade_loop(ex: BingXAsync):
+    global PEAK_BALANCE
+    while True:
+        try:
+            equity = float((await ex.balance())["data"]["balance"])
+        except Exception as e:
+            log.error("Balance fetch: %s\n%s", e, traceback.format_exc())
+            await asyncio.sleep(5); continue
+
+        if PEAK_BALANCE == 0:
+            PEAK_BALANCE = equity
+        if max_drawdown_stop(equity, PEAK_BALANCE):
+            log.error("🛑 Max DD – pause"); await asyncio.sleep(60); continue
+        if equity > PEAK_BALANCE:
+            PEAK_BALANCE = equity
+        cache.set("balance", equity)
+        log.info("💰 Equity %.2f $ (peak %.2f $)", equity, PEAK_BALANCE)
+
+        try:
+            api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
+        except Exception as e:
+            log.error("Positions fetch: %s\n%s", e, traceback.format_exc())
+            await asyncio.sleep(5); continue
+
+        for sym, p in api_pos.items():
+            if float(p["positionAmt"]) != 0:
+                await manage(ex, sym, p)
+
+        for sym in CONFIG.SYMBOLS:
+            if sym in api_pos:
+                continue
+            await think(ex, sym, equity)
+
+        await asyncio.sleep(2)
+
+
+# ---------- graceful shutdown ----------
+def shutdown(sig, frame):
+    log.info("⏹️  SIGTERM/SIGINT – shutting down")
+    sys.exit(0)
+
+
+# ---------- ENTRY POINT ------------------
+async def main():
+    # фоновый веб-сервер для UptimeRobot
+    asyncio.create_task(asyncio.to_thread(run_web))
+
+    async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
+        await trade_loop(ex)
+
+if __name__ == "__main__":
+    try:
+        print("=== DEBUG: запускаем main() ===")
+        asyncio.run(main())
+    except Exception as e:
+        print("CRASH in main():", e, file=sys.stderr)
+        traceback.print_exc()
+        sys.exit(1)
