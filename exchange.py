@@ -19,13 +19,11 @@ class BingXAsync:
         return hmac.new(self.sec.encode(), query.encode(), hashlib.sha256).hexdigest()
 
     async def _request(self, method: str, path: str, payload: Optional[Dict] = None):
-        ts = str(int(time.time()*1000))
+        ts = str(int(time.time() * 1000))
         payload = payload or {}
         payload["timestamp"] = ts
         query = "&".join([f"{k}={v}" for k, v in payload.items()])
         signature = self._sign(query)
-
-        # ➜ убираем пробел и добавляем заголовок
         url = f"{self.base.rstrip()}{path}?{query}&signature={signature}"
         headers = {"X-BX-APIKEY": self.key}
 
@@ -35,7 +33,7 @@ class BingXAsync:
             if js.get("code", 0) != 0:
                 raise RuntimeError(f"BingX error: {js}")
             return js
-    # ---------- остальные методы без изменений ----------
+
     async def klines(self, symbol: str, interval: str = "1m", limit: int = 150):
         path = "/openApi/swap/v2/quote/klines"
         data = await self._request("GET", path, {"symbol": symbol, "interval": interval, "limit": limit})
@@ -59,7 +57,8 @@ class BingXAsync:
             "type": order_type.upper(),
             "quantity": f"{quantity:.3f}",
             "positionSide": "BOTH",
-            "timeInForce": "PO" if post_only else "GTC",
+            "timeInForce": "GTC",          # только допустимое значение
+            "postOnly": post_only,         # флаг пост-онли
         }
         if price:
             payload["price"] = f"{price:.5f}"
