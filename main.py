@@ -145,6 +145,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     tf = await best_timeframe(ex, sym)
     try:
         klines = await ex.klines(sym, tf, 10)
+        log.info("RAW klines %s %s: %s", sym, tf, klines)
         book = await ex.order_book(sym, 5)
     except Exception as e:
         log.warning("❌ %s data fail: %s", sym, e)
