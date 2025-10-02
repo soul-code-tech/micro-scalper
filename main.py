@@ -154,8 +154,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     atr_pc = score["atr_pc"]
     px = float(book["asks"][0][0]) if score["long"] > score["short"] else float(book["bids"][0][0])
     # защита от пустых/кривых свечей
-    if not klines:                       # только «пусто»
-        log.warning("⏭️ %s – пустой ответ klines", sym)
+    if not klines or not isinstance(klines[-1], (list, tuple)) or len(klines[-1]) < 6:
+        log.warning("⏭️ %s – klines пустые или не хватает полей", sym)
         return
     vol_usd = float(klines[-1][5]) * px
     side = ("LONG" if score["long"] > score["short"] else
