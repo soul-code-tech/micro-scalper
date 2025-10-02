@@ -21,10 +21,15 @@ class ScalperConfig:
     HEALTH_PORT = int(os.getenv("PORT", "10000"))
 
     TRADE_HOURS = (8, 17)          # UTC
-    RR: float = 2.0          # Risk/Reward ratio
+    RR: float = 2.0                # Risk/Reward ratio
+
+    # 👇 ДОБАВЛЕНО: доля позиции для частичного тейк-профита
+    PARTIAL_TP: float = 0.5        # например, 50% позиции закрывается на TP1
+
 
 CONFIG = ScalperConfig()
 
+# Проверка обязательных переменных окружения
 for k in ("BINGX_API_KEY", "BINGX_SECRET_KEY"):
     if not os.getenv(k):
         print(f"🔥 ENV {k} не задана – выход")
