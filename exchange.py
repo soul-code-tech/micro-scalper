@@ -24,14 +24,17 @@ class BingXAsync:
         payload["timestamp"] = ts
         query = "&".join([f"{k}={v}" for k, v in payload.items()])
         signature = self._sign(query)
-        url = f"{self.base}{path}?{query}&signature={signature}"
-        async with self.sess.request(method, url) as r:
+
+        # ➜ убираем пробел и добавляем заголовок
+        url = f"{self.base.rstrip()}{path}?{query}&signature={signature}"
+        headers = {"X-BX-APIKEY": self.key}
+
+        async with self.sess.request(method, url, headers=headers) as r:
             r.raise_for_status()
             js = await r.json()
             if js.get("code", 0) != 0:
                 raise RuntimeError(f"BingX error: {js}")
             return js
-
     # ---------- остальные методы без изменений ----------
     async def klines(self, symbol: str, interval: str = "1m", limit: int = 150):
         path = "/openApi/swap/v2/quote/klines"
