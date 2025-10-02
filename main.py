@@ -151,7 +151,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             [bar["time"], bar["open"], bar["high"], bar["low"], bar["close"], bar["volume"]]
             for bar in klines
         ]
-        log.info("RAW klines %s %s: %s", sym, tf, klines)
+        #log.info("RAW klines %s %s: %s", sym, tf, klines)
         book = await ex.order_book(sym, 5)
     except Exception as e:
         log.warning("❌ %s data fail: %s", sym, e)
