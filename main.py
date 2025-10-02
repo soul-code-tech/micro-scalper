@@ -1,44 +1,87 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os, sys, signal, asyncio, logging, time, traceback
+"""
+Quantum-Scalper 15-min
+- async BingX
+- Kelly 0.25×
+- max-drawdown-stop 5 %
+- trailing-stop 0.8×ATR
+- безубыток после 1R
+- лог-рег вместо LSTM
+"""
+
+import os
+import sys
+import signal
+import asyncio
+import logging
+import time
+import traceback
 from datetime import datetime
+
 import pandas as pd
 
 from exchange import BingXAsync
 from strategy import micro_score
 from risk import calc, max_drawdown_stop
-from lstm_micro import predict_ensemble
 from store import cache
 from health import run_web
 from settings import CONFIG
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", datefmt="%H:%M:%S")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(message)s",
+    datefmt="%H:%M:%S",
+)
 log = logging.getLogger("scalper")
 
-POS: dict[str, dict] = {}
+POS: dict[str, dict] = {}          # symbol -> {side, qty, entry, sl, tp, part, oid, atr, breakeven_done, sl_orig}
 PEAK_BALANCE: float = 0.0
 
+
+# ---------- helpers ----------
 def human_float(n: float) -> str:
     return f"{n:.5f}".rstrip("0").rstrip(".") if n > 0.01 else f"{n:.7f}"
 
-# ---------- управление позой ----------
+
+# ---------- position management ----------
 async def manage(ex: BingXAsync, sym: str, api_pos: dict):
     pos = POS.get(sym)
     if not pos:
         return
     mark = float(api_pos["markPrice"])
     side = pos["side"]
+
+    # 1. trailing-stop 0.8×ATR (только в прибыльную сторону)
+    atr_dist = pos["atr"] * 0.8
+    if side == "LONG":
+        new_sl = mark - atr_dist
+        if new_sl > pos["sl"]:
+            pos["sl"] = new_sl
+            log.info("⬆️  %s trail SL → %s", sym, human_float(new_sl))
+    else:  # SHORT
+        new_sl = mark + atr_dist
+        if new_sl < pos["sl"]:
+            pos["sl"] = new_sl
+            log.info("⬇️  %s trail SL → %s", sym, human_float(new_sl))
+
+    # 2. обычный стоп-лосс
     if (side == "LONG" and mark <= pos["sl"]) or (side == "SHORT" and mark >= pos["sl"]):
         await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["qty"])
         POS.pop(sym)
-        log.info("🛑 %s SL at %s", sym, human_float(mark))
+        log.info("🛑 %s stopped at %s", sym, human_float(mark))
         return
-    risk_dist = abs(pos["entry"] - pos["sl"])
+
+    # 3. partial 1R + безубыток
+    risk_dist = abs(pos["entry"] - pos["sl_orig"])
     tp_1r = pos["entry"] + risk_dist if side == "LONG" else pos["entry"] - risk_dist
     if (side == "LONG" and mark >= tp_1r) or (side == "SHORT" and mark <= tp_1r):
-        await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["part"])
-        log.info("💰 %s part %.3f at %s", sym, pos["part"], human_float(mark))
-        pos["sl"] = pos["entry"]
+        if not pos.get("breakeven_done"):
+            await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["part"])
+            log.info("💰 %s part %.3f at %s", sym, pos["part"], human_float(mark))
+            pos["sl"] = pos["entry"]          # безубыток
+            pos["breakeven_done"] = True
+
 
 # ---------- guard ----------
 async def guard(px: float, side: str, book: dict, sym: str) -> bool:
@@ -48,6 +91,7 @@ async def guard(px: float, side: str, book: dict, sym: str) -> bool:
         log.info("⏭️  %s wide spread %.4f", sym, spread)
         return False
     return True
+
 
 # ---------- мысли вслух ----------
 async def think(ex: BingXAsync, sym: str, equity: float):
@@ -62,12 +106,12 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     atr_pc = score["atr_pc"]
     px = float(book["asks"][0][0]) if score["long"] > score["short"] else float(book["bids"][0][0])
     vol_usd = float(klines[-1][5]) * px
-    lstm_prob = await predict_ensemble(klines)
-    side = ("LONG" if lstm_prob > CONFIG.PROBA_LONG else
-            "SHORT" if lstm_prob < CONFIG.PROBA_SHORT else None)
+    lstm_prob = 0.5   # теперь лог-рег внутри micro_score
+    side = ("LONG" if score["long"] > score["short"] else
+            "SHORT" if score["short"] > score["long"] else None)
 
-    log.info("🧠 %s atr=%.4f vol=%.0f$ lstm=%.2f side=%s long=%.2f short=%.2f",
-             sym, atr_pc, vol_usd, lstm_prob, side, score["long"], score["short"])
+    log.info("🧠 %s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
+             sym, atr_pc, vol_usd, side, score["long"], score["short"])
 
     if atr_pc < CONFIG.MIN_ATR_PC:
         log.info("⏭️  %s low atr", sym); return
@@ -87,12 +131,24 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     order = await ex.place_order(sym, side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
     if order and order.get("code") == 0:
         oid = order["data"]["orderId"]
-        POS[sym] = dict(side=side, qty=sizing.size, entry=px, sl=sizing.sl_px,
-                        tp=sizing.tp_px, part=sizing.partial_qty, oid=oid)
-        log.info("📨 %s %s %.3f @ %s SL=%s TP=%s", sym, side, sizing.size,
-                 human_float(px), human_float(sizing.sl_px), human_float(sizing.tp_px))
+        POS[sym] = dict(
+            side=side,
+            qty=sizing.size,
+            entry=px,
+            sl=sizing.sl_px,
+            sl_orig=sizing.sl_px,
+            tp=sizing.tp_px,
+            part=sizing.partial_qty,
+            oid=oid,
+            atr=atr_pc * px,
+            breakeven_done=False,
+        )
+        log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
+                 sym, side, sizing.size, human_float(px),
+                 human_float(sizing.sl_px), human_float(sizing.tp_px))
 
-# ---------- основной цикл ----------
+
+# ---------- main loop ----------
 async def trade_loop(ex: BingXAsync):
     global PEAK_BALANCE
     while True:
@@ -128,14 +184,19 @@ async def trade_loop(ex: BingXAsync):
 
         await asyncio.sleep(2)
 
-# ---------- запуск ----------
-def shutdown(sig, frame):
-    log.info("⏹️  SIGTERM/SIGINT – shutdown"); sys.exit(0)
 
+# ---------- graceful shutdown ----------
+def shutdown(sig, frame):
+    log.info("⏹️  SIGTERM/SIGINT – shutdown")
+    sys.exit(0)
+
+
+# ---------- entry ----------
 async def main():
     asyncio.create_task(asyncio.to_thread(run_web))
     async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
         await trade_loop(ex)
+
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, shutdown)
