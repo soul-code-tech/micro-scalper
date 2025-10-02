@@ -148,4 +148,29 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     if not side:
         log.info("⏭️  %s no side", sym); return
     if len(POS) >= CONFIG.MAX_POS:
-        log.info("
+        log.info("⏭️  %s max pos reached", sym); return
+    if not await guard(px, side, book, sym):
+        return
+
+    sizing = calc(px, atr_pc * px, side, equity)
+    if sizing.size <= 0:
+        log.info("⏭️  %s sizing zero", sym); return
+
+    order = await ex.place_order(sym, side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
+    if order and order.get("code") == 0:
+        oid = order["data"]["orderId"]
+        POS[sym] = dict(
+            side=side,
+            qty=sizing.size,
+            entry=px,
+            sl=sizing.sl_px,
+            sl_orig=sizing.sl_px,
+            tp=sizing.tp_px,
+            part=sizing.partial_qty,
+            oid=oid,
+            atr=atr_pc * px,
+            breakeven_done=False,
+        )
+        log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
+                 sym, side, sizing.size, human_float(px),
+                 human_float(sizing.sl_px), human_float(sizing.tp_px))
