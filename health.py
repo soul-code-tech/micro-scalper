@@ -4,6 +4,7 @@ import time
 import asyncio
 import logging
 from flask import Flask, jsonify
+from asgiref.wsgi import WsgiToAsgi
 from exchange import BingXAsync
 from store import cache
 from settings import CONFIG
@@ -29,8 +30,8 @@ def health():
         equity = asyncio.run(bal())
         return jsonify(
             status="ok",
-            balance=round(eity, 2),
-            positions=len(set(cache.get("pos", {}))),
+            balance=round(equity, 2),
+            positions=len(cache.get("pos", {})),
             uptime=int(time.time() - START)
         )
     except Exception as e:
@@ -38,8 +39,10 @@ def health():
         return jsonify(status="error", msg=str(e)), 503
 
 
+# оборачиваем Flask в ASGI
+asgi_app = WsgiToAsgi(app)
+
+
 def run_web():
-    # для Gunicorn
-    from uvicorn import Config, Server
-    config = Config("health:app", host="0.0.0.0", port=CONFIG.HEALTH_PORT, log_level="info")
-    Server(config).run()
+    import uvicorn
+    uvicorn.run(asgi_app, host="0.0.0.0", port=CONFIG.HEALTH_PORT, log_level="info")
