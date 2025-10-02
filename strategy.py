@@ -1,4 +1,8 @@
 import pandas as pd
+import pickle
+import os
+
+MODEL_PATH = "weights/BTCUSDT.pkl"
 
 def rsi(series: pd.Series, period: int = 14) -> float:
     delta = series.diff()
@@ -14,23 +18,42 @@ def atr(df: pd.DataFrame, period: int = 14) -> float:
     tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
     return float(tr.rolling(period).mean().iloc[-1])
 
-def micro_score(klines: list) -> dict:
+def feat_vector(klines: list) -> pd.Series:
     df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
-    c = df["c"]
+    c, h, l, v = df["c"], df["h"], df["l"], df["v"]
+    atr_pc = atr(df, 14) / c.iloc[-1]
     rsi_val = rsi(c, 14)
-    atr_val = atr(df, 14)
-    atr_pc = atr_val / c.iloc[-1]
     ema9  = c.ewm(span=9).mean().iloc[-1]
     ema21 = c.ewm(span=21).mean().iloc[-1]
-    vol_sma = df["v"].rolling(20).mean().iloc[-1]
-    vol_ratio = df["v"].iloc[-1] / (vol_sma + 1e-8)
+    vol_sma = v.rolling(20).mean().iloc[-1]
+    vol_ratio = v.iloc[-1] / (vol_sma + 1e-8)
+    # 4 фичи
+    return pd.Series([atr_pc, rsi_val, (c.iloc[-1] - ema9) / ema9, vol_ratio])
 
-    long_score = 0.0
-    if 45 < rsi_val < 65 and c.iloc[-1] > ema9 > ema21 and vol_ratio > 1.0 and atr_pc >= 0.0004:
-        long_score = min(1.0, vol_ratio / 3)
+def load_model():
+    if not os.path.exists(MODEL_PATH):
+        return None
+    with open(MODEL_PATH, "rb") as f:
+        return pickle.load(f)   # dict{clf, thr}
 
-    short_score = 0.0
-    if 35 < rsi_val < 55 and c.iloc[-1] < ema9 < ema21 and vol_ratio > 1.0 and atr_pc >= 0.0004:
-        short_score = min(1.0, vol_ratio / 3)
+def micro_score(klines: list) -> dict:
+    model = load_model()
+    fv = feat_vector(klines)
+    atr_pc, rsi_val, ema_dev, vol_ratio = fv
+    long_raw = 0.0
+    if 45 < rsi_val < 65 and ema_dev > 0 and vol_ratio > 1.0 and atr_pc >= 0.0004:
+        long_raw = min(1.0, vol_ratio / 3)
+    short_raw = 0.0
+    if 35 < rsi_val < 55 and ema_dev < 0 and vol_ratio > 1.0 and atr_pc >= 0.0004:
+        short_raw = min(1.0, vol_ratio / 3)
 
-    return {"long": long_score, "short": short_score, "atr_pc": atr_pc}
+    # если есть модель – улучшаем
+    if model:
+        X = fv.values.reshape(1, -1)
+        prob = model["clf"].predict_proba(X)[0, 1]
+        if prob > model["thr"]:
+            long_raw = max(long_raw, prob * 0.8)
+        elif prob < 1 - model["thr"]:
+            short_raw = max(short_raw, (1 - prob) * 0.8)
+
+    return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
