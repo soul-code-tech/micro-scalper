@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Quantum-Scalper 5-15m auto-TF
+Quantum-Scalper 1-15m auto-TF
 - async BingX
 - Kelly 0.25×
 - max-drawdown-stop 5 %
 - trailing-stop 0.8×ATR
+- quick TP1 60 % at 0.7×ATR
+- trail40 remaining at 0.4×ATR
 - breakeven + partial 1R
-- auto timeframe 5m/15m (top 15m)
+- auto timeframe 1m-15m
+- log-reg signal
 """
 
 import os
@@ -51,8 +54,8 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
     mark = float(api_pos["markPrice"])
     side = pos["side"]
 
-    # 1. trailing-stop 0.8×ATR (только в прибыльную сторону)
-    atr_dist = pos["atr"] * 0.8
+    # 0. trailing-stop 0.8×ATR (в прибыльную сторону)
+    atr_dist = pos["atr"] * CONFIG.ATR_MULT_SL
     if side == "LONG":
         new_sl = mark - atr_dist
         if new_sl > pos["sl"]:
@@ -64,21 +67,47 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
             pos["sl"] = new_sl
             log.info("⬇️  %s trail SL → %s", sym, human_float(new_sl))
 
-    # 2. обычный стоп-лосс
+    # 1. быстрый выход 60 % на 0.7×ATR
+    risk_dist   = abs(pos["entry"] - pos["sl_orig"])
+    tp1_dist    = risk_dist * CONFIG.TP1_MULT      # 0.7
+    tp1_px      = pos["entry"] + tp1_dist if side == "LONG" else pos["entry"] - tp1_dist
+
+    if (side == "LONG" and mark >= tp1_px) or (side == "SHORT" and mark <= tp1_px):
+        if not pos.get("tp1_done"):
+            qty60 = pos["qty"] * 0.6
+            await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", qty60)
+            log.info("⚡ %s TP1 60%% at %s", sym, human_float(mark))
+            pos["tp1_done"] = True
+
+    # 2. трейл оставшихся 40 % на 0.4×ATR
+    if pos.get("tp1_done"):
+        trail_dist = risk_dist * CONFIG.TRAIL_MULT   # 0.4
+        if side == "LONG":
+            new_sl40 = mark - trail_dist
+            if new_sl40 > pos["sl"]:
+                pos["sl"] = new_sl40
+                log.info("⬆️  %s trail40 → %s", sym, human_float(new_sl40))
+        else:  # SHORT
+            new_sl40 = mark + trail_dist
+            if new_sl40 < pos["sl"]:
+                pos["sl"] = new_sl40
+                log.info("⬇️  %s trail40 → %s", sym, human_float(new_sl40))
+
+    # 3. стоп-лосс (финальный)
     if (side == "LONG" and mark <= pos["sl"]) or (side == "SHORT" and mark >= pos["sl"]):
         await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["qty"])
         POS.pop(sym)
         log.info("🛑 %s stopped at %s", sym, human_float(mark))
         return
 
-    # 3. partial 1R + breakeven
+    # 4. breakeven + partial 1R (оставляем как есть)
     risk_dist = abs(pos["entry"] - pos["sl_orig"])
     tp_1r = pos["entry"] + risk_dist if side == "LONG" else pos["entry"] - risk_dist
     if (side == "LONG" and mark >= tp_1r) or (side == "SHORT" and mark <= tp_1r):
         if not pos.get("breakeven_done"):
             await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["part"])
             log.info("💰 %s part %.3f at %s", sym, pos["part"], human_float(mark))
-            pos["sl"] = pos["entry"]                 # безубыток
+            pos["sl"] = pos["entry"]
             pos["breakeven_done"] = True
 
 
@@ -119,85 +148,4 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     if not side:
         log.info("⏭️  %s no side", sym); return
     if len(POS) >= CONFIG.MAX_POS:
-        log.info("⏭️  %s max pos", sym); return
-    if not await guard(px, side, book, sym):
-        return
-
-    sizing = calc(px, atr_pc * px, side, equity)
-    if sizing.size <= 0:
-        log.info("⏭️  %s sizing zero", sym); return
-
-    order = await ex.place_order(sym, side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
-    if order and order.get("code") == 0:
-        oid = order["data"]["orderId"]
-        POS[sym] = dict(
-            side=side,
-            qty=sizing.size,
-            entry=px,
-            sl=sizing.sl_px,
-            sl_orig=sizing.sl_px,
-            tp=sizing.tp_px,
-            part=sizing.partial_qty,
-            oid=oid,
-            atr=atr_pc * px,
-            breakeven_done=False,
-        )
-        log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
-                 sym, side, sizing.size, human_float(px),
-                 human_float(sizing.sl_px), human_float(sizing.tp_px))
-
-
-# ---------- основной цикл ----------
-async def trade_loop(ex: BingXAsync):
-    global PEAK_BALANCE
-    while True:
-        try:
-            equity = float((await ex.balance())["data"]["balance"])
-        except Exception as e:
-            log.error("Balance fetch: %s\n%s", e, traceback.format_exc())
-            await asyncio.sleep(5); continue
-
-        if PEAK_BALANCE == 0:
-            PEAK_BALANCE = equity
-        if max_drawdown_stop(equity, PEAK_BALANCE):
-            log.error("🛑 Max DD – pause"); await asyncio.sleep(60); continue
-        if equity > PEAK_BALANCE:
-            PEAK_BALANCE = equity
-        cache.set("balance", equity)
-        log.info("💰 Equity %.2f $ (peak %.2f $)", equity, PEAK_BALANCE)
-
-        try:
-            api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
-        except Exception as e:
-            log.error("Positions fetch: %s\n%s", e, traceback.format_exc())
-            await asyncio.sleep(5); continue
-
-        for sym, p in api_pos.items():
-            if float(p["positionAmt"]) != 0:
-                await manage(ex, sym, p)
-
-        for sym in CONFIG.SYMBOLS:
-            if sym in api_pos:
-                continue
-            await think(ex, sym, equity)
-
-        await asyncio.sleep(2)
-
-
-# ---------- graceful shutdown ----------
-def shutdown(sig, frame):
-    log.info("⏹️  SIGTERM/SIGINT – shutdown")
-    sys.exit(0)
-
-
-# ---------- entry ----------
-async def main():
-    asyncio.create_task(asyncio.to_thread(run_web))
-    async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
-        await trade_loop(ex)
-
-
-if __name__ == "__main__":
-    signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
-    asyncio.run(main())
+        log.info("
