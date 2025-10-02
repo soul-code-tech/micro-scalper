@@ -41,7 +41,7 @@ print("=== DEBUG: импорты завершены ===")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(message)s",
-    datefmt="%H:%M:%S",
+    datefmt="%H:%M",
 )
 log = logging.getLogger("scalper")
 
@@ -202,7 +202,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("⏭️  %s sizing zero", sym)
         return
 
-    order = await ex.place_order(sym, side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
+    bingx_side = "BUY" if side == "LONG" else "SELL"
+    order = await ex.place_order(sym, bingx_side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
     if order and order.get("code") == 0:
         oid = order["data"]["orderId"]
         POS[sym] = dict(
