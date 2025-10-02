@@ -47,7 +47,7 @@ log = logging.getLogger("scalper")
 
 POS: dict[str, dict] = {}
 OPEN_ORDERS: dict[str, str] = {}   # symbol -> orderId
-
+PEAK_BALANCE: float = 0.0
 
 def human_float(n: float) -> str:
     return f"{n:.5f}".rstrip("0").rstrip(".") if n > 0.01 else f"{n:.7f}"
