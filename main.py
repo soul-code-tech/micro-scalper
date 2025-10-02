@@ -19,24 +19,29 @@ import signal
 import asyncio
 import logging
 import time
-import traceback
-from datetime import datetime
-
-from exchange import BingXAsync
-from strategy import micro_score
-from risk import calc, max_drawdown_stop
-from store import cache
-from health import run_web
-from settings import CONFIG
-from tf_selector import best_timeframe
-# ----- временный трейс -----
 import traceback, sys
+print("=== DEBUG: starting main ===")
 try:
-    print("=== DEBUG: starting main ===")
+ # ====== ИМПОРТЫ ======
+from exchange import BingXAsync
+print("✅ exchange")
+from strategy import micro_score
+print("✅ strategy")
+from risk import calc, max_drawdown_stop
+print("✅ risk")
+from store import cache
+print("✅ store")
+from health import run_web
+print("✅ health")
+from settings import CONFIG
+print("✅ settings")
+from tf_selector import best_timeframe
+print("✅ tf_selector")
+# ====== /ИМПОРТЫ ======
 except Exception as e:
-    print("CRASH on import:", e, file=sys.stderr)
-    traceback.print_exc()
-    sys.exit(1)
+print("CRASH on import:", e, file=sys.stderr)
+traceback.print_exc()
+sys.exit(1)
 # ---------------------------
 
 logging.basicConfig(
