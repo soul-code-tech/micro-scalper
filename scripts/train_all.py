@@ -12,7 +12,7 @@ from exchange import BingXAsync
 from strategy import feat_vector
 
 SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT"]
-BARS = 3000
+BARS = 1440
 TIME_FRAMES = ["1m", "3m", "5m", "15m"]   # обучаем на всех ТФ
 
 async def train_one(sym: str, tf: str):
