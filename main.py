@@ -187,14 +187,17 @@ async def trade_loop(ex: BingXAsync):
             # стало:
             raw_bal = await ex.balance()
             # BingX может вернуть {"data": {"balance": {"balance": "123.45"}}} или {"data": "123.45"}
-            data = raw_bal["data"]
+                        data = raw_bal["data"]
             if isinstance(data, dict) and "balance" in data:
                 # вариант 1: {"balance": {"balance": "123.45"}}
                 if isinstance(data["balance"], dict):
                     equity = float(data["balance"]["balance"])
-                 # вариант 2: {"balance": "123.45"}
-                 else:
-                     equity = float(data["balance"])
+                # вариант 2: {"balance": "123.45"}
+                else:
+                    equity = float(data["balance"])
+            else:
+                # вариант 3: {"data": "123.45"}
+                equity = float(data)
              else:
                   # вариант 3: {"data": "123.45"}
                   equity = float(data)
