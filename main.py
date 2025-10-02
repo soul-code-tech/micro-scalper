@@ -144,7 +144,13 @@ async def think(ex: BingXAsync, sym: str, equity: float):
 
     tf = await best_timeframe(ex, sym)
     try:
-        klines = await ex.klines(sym, tf, 10)
+        klines = await ex.klines(sym, tf, 150)
+        # BingX присылает поля open/close/high/low/volume/time
+        # Переименуем в t,o,h,l,c,v
+        klines = [
+            [bar["time"], bar["open"], bar["high"], bar["low"], bar["close"], bar["volume"]]
+            for bar in klines
+        ]
         log.info("RAW klines %s %s: %s", sym, tf, klines)
         book = await ex.order_book(sym, 5)
     except Exception as e:
