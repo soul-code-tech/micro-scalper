@@ -25,7 +25,7 @@ import logging
 import time
 import traceback
 import aiohttp
-from datetime import datetime
+from datetime import datetime, timezone
 
 from exchange import BingXAsync
 from strategy import micro_score
@@ -172,7 +172,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
              sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
 
     # --- фильтр времени ---
-    utc_hour = datetime.utcnow().hour
+    utc_hour = datetime.now(datetime.timezone.utc).hour
     if not (CONFIG.TRADE_HOURS[0] <= utc_hour < CONFIG.TRADE_HOURS[1]):
         log.info("⏭️  %s – вне торгового окна", sym)
         return
