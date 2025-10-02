@@ -135,7 +135,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             if status == "FILLED":
                 OPEN_ORDERS.pop(sym, None)
             else:
-                log.info("⏭️  %s ордер %s не исполнен", sym, OPEN_ORDERS[sym])
+                log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
+                         sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
                 return
         except Exception as e:
             log.warning("❌ не смог проверить ордер %s: %s", sym, e)
