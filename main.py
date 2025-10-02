@@ -22,26 +22,26 @@ import time
 import traceback, sys
 print("=== DEBUG: starting main ===")
 try:
- # ====== ИМПОРТЫ ======
-from exchange import BingXAsync
-print("✅ exchange")
-from strategy import micro_score
-print("✅ strategy")
-from risk import calc, max_drawdown_stop
-print("✅ risk")
-from store import cache
-print("✅ store")
-from health import run_web
-print("✅ health")
-from settings import CONFIG
-print("✅ settings")
-from tf_selector import best_timeframe
-print("✅ tf_selector")
-# ====== /ИМПОРТЫ ======
+    # ====== ИМПОРТЫ ======
+    from exchange import BingXAsync
+    print("✅ exchange")
+    from strategy import micro_score
+    print("✅ strategy")
+    from risk import calc, max_drawdown_stop
+    print("✅ risk")
+    from store import cache
+    print("✅ store")
+    from health import run_web
+    print("✅ health")
+    from settings import CONFIG
+    print("✅ settings")
+    from tf_selector import best_timeframe
+    print("✅ tf_selector")
+    # ====== /ИМПОРТЫ ======
 except Exception as e:
-print("CRASH on import:", e, file=sys.stderr)
-traceback.print_exc()
-sys.exit(1)
+    print("CRASH on import:", e, file=sys.stderr)
+    traceback.print_exc()
+    sys.exit(1)
 # ---------------------------
 
 logging.basicConfig(
