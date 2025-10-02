@@ -13,9 +13,9 @@ class ScalperConfig:
     ATR_MULT_SL = 0.8
     TP1_MULT   = 1.2        # было 0.7
     TRAIL_MULT = 0.8        # было 0.4
-    MIN_VOL_USD = 30_000
-    MAX_SPREAD = 0.0005
-    MIN_ATR_PC = 0.0005
+    MIN_VOL_USD = 5_000
+    MAX_SPREAD = 0.0002
+    MIN_ATR_PC = 0.0001
     POST_ONLY = True
     ORDER_TO = 8
     HEALTH_PORT = int(os.getenv("PORT", "10000"))
