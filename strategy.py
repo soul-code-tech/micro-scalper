@@ -2,8 +2,6 @@ import pandas as pd
 import pickle
 import os
 
-MODEL_PATH = "weights/BTCUSDT.pkl"
-
 def rsi(series: pd.Series, period: int = 14) -> float:
     delta = series.diff()
     gain = delta.where(delta > 0, 0).rolling(period).mean()
@@ -27,33 +25,22 @@ def feat_vector(klines: list) -> pd.Series:
     ema21 = c.ewm(span=21).mean().iloc[-1]
     vol_sma = v.rolling(20).mean().iloc[-1]
     vol_ratio = v.iloc[-1] / (vol_sma + 1e-8)
-    # 4 фичи
     return pd.Series([atr_pc, rsi_val, (c.iloc[-1] - ema9) / ema9, vol_ratio])
 
 def load_model():
-    if not os.path.exists(MODEL_PATH):
-        return None
-    with open(MODEL_PATH, "rb") as f:
-        return pickle.load(f)   # dict{clf, thr}
+    return None          # тест без ML
 
 def micro_score(klines: list) -> dict:
     model = load_model()
     fv = feat_vector(klines)
     atr_pc, rsi_val, ema_dev, vol_ratio = fv
-    long_raw = 0.0
-    if 45 < rsi_val < 65 and ema_dev > 0 and vol_ratio > 1.0 and atr_pc >= 0.0004:
-        long_raw = min(1.0, vol_ratio / 3)
-    short_raw = 0.0
-    if 35 < rsi_val < 55 and ema_dev < 0 and vol_ratio > 1.0 and atr_pc >= 0.0004:
-        short_raw = min(1.0, vol_ratio / 3)
 
-    # если есть модель – улучшаем
-    if model:
-        X = fv.values.reshape(1, -1)
-        prob = model["clf"].predict_proba(X)[0, 1]
-        if prob > model["thr"]:
-            long_raw = max(long_raw, prob * 0.8)
-        elif prob < 1 - model["thr"]:
-            short_raw = max(short_raw, (1 - prob) * 0.8)
+    long_raw = 0.0
+    if 40 < rsi_val < 70 and ema_dev > 0 and vol_ratio > 0.6 and atr_pc >= 0.0001:
+        long_raw = min(1.0, vol_ratio / 3)
+
+    short_raw = 0.0
+    if 30 < rsi_val < 60 and ema_dev < 0 and vol_ratio > 0.6 and atr_pc >= 0.0001:
+        short_raw = min(1.0, vol_ratio / 3)
 
     return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
