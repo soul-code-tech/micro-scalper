@@ -34,6 +34,7 @@ from health_aio import run_web
 from settings import CONFIG
 from tf_selector import best_timeframe
 from news_filter import is_news_time
+from health_aio import start_health
 
 print("=== DEBUG: импорты завершены ===")
 
@@ -271,7 +272,7 @@ def shutdown(sig, frame):
 
 
 async def main():
-    asyncio.create_task(asyncio.to_thread(run_web))
+    asyncio.create_task(start_health())
     async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
         await trade_loop(ex)
 
