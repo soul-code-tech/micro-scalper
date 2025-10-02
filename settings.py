@@ -11,8 +11,8 @@ class ScalperConfig:
     KELLY_F = 0.25
     MAX_DD_STOP = 5.0
     ATR_MULT_SL = 0.8
-    TP1_MULT = 0.7
-    TRAIL_MULT = 0.4
+    TP1_MULT   = 1.2        # было 0.7
+    TRAIL_MULT = 0.8        # было 0.4
     MIN_VOL_USD = 30_000
     MAX_SPREAD = 0.0005
     MIN_ATR_PC = 0.0005
