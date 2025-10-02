@@ -20,7 +20,16 @@ async def health(request: web.Request) -> web.Response:
                               os.getenv("BINGX_SECRET_KEY")) as ex:
             info = await ex.balance()
             data = info.get("data", "0")
-            bal = float(data if isinstance(data, str) else data.get("balance", "0"))
+
+        # ⬅️ теперь ВНУТРИ try
+        if isinstance(data, dict) and "balance" in data:
+            if isinstance(data["balance"], dict):
+                bal = float(data["balance"]["balance"])
+            else:
+                bal = float(data["balance"])
+        else:
+            bal = float(data)
+
     except Exception as e:
         log.error("Health error: %s", e)
         return web.json_response({"status": "error", "msg": str(e)}, status=503)
