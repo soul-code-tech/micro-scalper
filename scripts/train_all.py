@@ -20,13 +20,9 @@ async def train_one(sym: str, tf: str):
         klines = await ex.klines(sym, tf, BARS)
     X, y = [], []
     df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
-    FEE = 0.0004  # 0.04 % одна сторона
     for i in range(50, len(df) - 1):
         fv = feat_vector(df.iloc[i - 50:i].values.tolist())
-        price_now = df.iloc[i]["c"]
-        price_next = df.iloc[i + 1]["c"]
-        net_change = (price_next - price_now) / price_now
-        target = 1 if net_change > 2 * FEE else 0
+        target = 1 if df.iloc[i + 1]["c"] > df.iloc[i]["c"] else 0
         X.append(fv.values)
         y.append(target)
     X, y = np.array(X), np.array(y)
