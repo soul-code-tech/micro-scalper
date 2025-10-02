@@ -21,6 +21,7 @@ class ScalperConfig:
     HEALTH_PORT = int(os.getenv("PORT", "10000"))
 
     TRADE_HOURS = (8, 17)          # UTC
+    RR: float = 2.0          # Risk/Reward ratio
 
 CONFIG = ScalperConfig()
 
