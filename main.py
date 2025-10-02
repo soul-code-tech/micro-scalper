@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Quantum-Scalper 15-min
+Quantum-Scalper 5-15m auto-TF
 - async BingX
 - Kelly 0.25×
 - max-drawdown-stop 5 %
 - trailing-stop 0.8×ATR
-- безубыток после 1R
-- лог-рег вместо LSTM
+- breakeven + partial 1R
+- auto timeframe 5m/15m (top 15m)
 """
 
 import os
@@ -19,14 +19,13 @@ import time
 import traceback
 from datetime import datetime
 
-import pandas as pd
-
 from exchange import BingXAsync
 from strategy import micro_score
 from risk import calc, max_drawdown_stop
 from store import cache
 from health import run_web
 from settings import CONFIG
+from tf_selector import best_timeframe
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,14 +71,14 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
         log.info("🛑 %s stopped at %s", sym, human_float(mark))
         return
 
-    # 3. partial 1R + безубыток
+    # 3. partial 1R + breakeven
     risk_dist = abs(pos["entry"] - pos["sl_orig"])
     tp_1r = pos["entry"] + risk_dist if side == "LONG" else pos["entry"] - risk_dist
     if (side == "LONG" and mark >= tp_1r) or (side == "SHORT" and mark <= tp_1r):
         if not pos.get("breakeven_done"):
             await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["part"])
             log.info("💰 %s part %.3f at %s", sym, pos["part"], human_float(mark))
-            pos["sl"] = pos["entry"]          # безубыток
+            pos["sl"] = pos["entry"]                 # безубыток
             pos["breakeven_done"] = True
 
 
@@ -95,8 +94,9 @@ async def guard(px: float, side: str, book: dict, sym: str) -> bool:
 
 # ---------- мысли вслух ----------
 async def think(ex: BingXAsync, sym: str, equity: float):
+    tf = await best_timeframe(ex, sym)          # ← выбираем TF
     try:
-        klines = await ex.klines(sym, CONFIG.TIMEFRAME, 150)
+        klines = await ex.klines(sym, tf, 150)  # ← используем его
         book   = await ex.order_book(sym, 5)
     except Exception as e:
         log.warning("❌ %s data fail: %s", sym, e)
@@ -106,16 +106,15 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     atr_pc = score["atr_pc"]
     px = float(book["asks"][0][0]) if score["long"] > score["short"] else float(book["bids"][0][0])
     vol_usd = float(klines[-1][5]) * px
-    lstm_prob = 0.5   # теперь лог-рег внутри micro_score
     side = ("LONG" if score["long"] > score["short"] else
             "SHORT" if score["short"] > score["long"] else None)
 
-    log.info("🧠 %s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
-             sym, atr_pc, vol_usd, side, score["long"], score["short"])
+    log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
+             sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
 
     if atr_pc < CONFIG.MIN_ATR_PC:
         log.info("⏭️  %s low atr", sym); return
-    if vol_usd < CONFIG.MIN_VOL_USD_15m:
+    if vol_usd < CONFIG.MIN_VOL_USD:
         log.info("⏭️  %s low vol", sym); return
     if not side:
         log.info("⏭️  %s no side", sym); return
@@ -148,7 +147,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                  human_float(sizing.sl_px), human_float(sizing.tp_px))
 
 
-# ---------- main loop ----------
+# ---------- основной цикл ----------
 async def trade_loop(ex: BingXAsync):
     global PEAK_BALANCE
     while True:
