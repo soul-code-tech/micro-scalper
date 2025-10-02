@@ -6,14 +6,15 @@ Quantum-Scalper 1-15m auto-TF
 - Kelly 0.25×
 - max-drawdown-stop 5 %
 - trailing-stop 0.8×ATR
-- quick TP1 60 % at 0.7×ATR
-- trail40 remaining at 0.4×ATR
+- quick TP1 60 % at 1.2×ATR  ← исправлено
+- trail40 remaining at 0.8×ATR
 - breakeven + partial 1R
 - auto timeframe 1m-15m
-- log-reg signal
+- log-reg signal (expectancy)
 - фильтр времени 8-17 UTC
 - фильтр новостей ±5 мин
 - скачивание весов при старте
+- контроль висящих ордеров
 """
 
 import os
@@ -45,7 +46,7 @@ logging.basicConfig(
 log = logging.getLogger("scalper")
 
 POS: dict[str, dict] = {}
-PEAK_BALANCE: float = 0.0
+OPEN_ORDERS: dict[str, str] = {}   # symbol -> orderId
 
 
 def human_float(n: float) -> str:
@@ -80,6 +81,8 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
         if not pos.get("tp1_done"):
             qty60 = pos["qty"] * 0.6
             await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", qty60)
+            OPEN_ORDERS.pop(sym, None)
+            await ex.cancel_all(sym)
             log.info("⚡ %s TP1 60%% at %s", sym, human_float(mark))
             pos["tp1_done"] = True
 
@@ -99,6 +102,8 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
     if (side == "LONG" and mark <= pos["sl"]) or (side == "SHORT" and mark >= pos["sl"]):
         await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["qty"])
         POS.pop(sym)
+        OPEN_ORDERS.pop(sym, None)
+        await ex.cancel_all(sym)
         log.info("🛑 %s stopped at %s", sym, human_float(mark))
         return
 
@@ -122,6 +127,20 @@ async def guard(px: float, side: str, book: dict, sym: str) -> bool:
 
 
 async def think(ex: BingXAsync, sym: str, equity: float):
+    # --- контроль висящих ордеров ---
+    if OPEN_ORDERS.get(sym):
+        try:
+            oo = await ex.fetch_order(sym, OPEN_ORDERS[sym])
+            status = oo.get("data", {}).get("status", "")
+            if status == "FILLED":
+                OPEN_ORDERS.pop(sym, None)
+            else:
+                log.info("⏭️  %s ордер %s не исполнен", sym, OPEN_ORDERS[sym])
+                return
+        except Exception as e:
+            log.warning("❌ не смог проверить ордер %s: %s", sym, e)
+            return
+
     tf = await best_timeframe(ex, sym)
     try:
         klines = await ex.klines(sym, tf, 150)
