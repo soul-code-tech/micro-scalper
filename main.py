@@ -226,7 +226,7 @@ async def trade_loop(ex: BingXAsync):
             data = raw_bal["data"]
             if isinstance(data, dict) and "balance" in data:
                 if isinstance(data["balance"], dict):
-                    equity = float(data["balance"]["balance"])
+                    equity = float(data["balance"]["equity"])   # реальная эквити
                 else:
                     equity = float(data["balance"])
             else:
