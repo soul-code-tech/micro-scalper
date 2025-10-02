@@ -19,7 +19,6 @@ def health():
         async def bal():
             async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
                 info = await ex.balance()
-                # надёжный парсинг: может быть {"data": "123.45"} или {"data": {"balance": "123.45"}}
                 data = info.get("data", "0")
                 if isinstance(data, dict):
                     balance_str = str(data.get("balance", "0"))
@@ -30,8 +29,8 @@ def health():
         equity = asyncio.run(bal())
         return jsonify(
             status="ok",
-            balance=round(equity, 2),
-            positions=len(cache.get("pos", {})),
+            balance=round(eity, 2),
+            positions=len(set(cache.get("pos", {}))),
             uptime=int(time.time() - START)
         )
     except Exception as e:
@@ -40,4 +39,7 @@ def health():
 
 
 def run_web():
-    app.run(host="0.0.0.0", port=CONFIG.HEALTH_PORT, debug=False)
+    # для Gunicorn
+    from uvicorn import Config, Server
+    config = Config("health:app", host="0.0.0.0", port=CONFIG.HEALTH_PORT, log_level="info")
+    Server(config).run()
