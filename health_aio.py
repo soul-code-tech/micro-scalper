@@ -24,7 +24,7 @@ async def health(request: web.Request) -> web.Response:
         # ⬅️ теперь ВНУТРИ try
         if isinstance(data, dict) and "balance" in data:
             if isinstance(data["balance"], dict):
-                bal = float(data["balance"]["balance"])
+                bal = float(data["balance"]["equity"])
             else:
                 bal = float(data["balance"])
         else:
