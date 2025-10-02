@@ -1,11 +1,11 @@
-name: Retrain micro-models every 2h
+name: Walk-forward retrain (2 months)
 on:
   schedule:
-    - cron: "0 */2 * * *"
+    - cron: "0 0 1 */2 *"   # 1-е число каждого 2-го месяца
   workflow_dispatch:
 
 permissions:
-  contents: write  # ← чтобы можно было пушить ветку weights
+  contents: write
 
 jobs:
   train:
@@ -22,25 +22,9 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      # ШАГ 1: обучаем модели (в ветке main)
       - env:
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
-        run: ${{ env.pythonLocation }}/bin/python scripts/train_all.py
+        run: python scripts/train_all.py
 
-      # ШАГ 2: клонируем ветку weights и копируем туда веса
-      - run: |
-          git clone --branch weights --single-branch \
-            https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git \
-            weights-branch || git clone --single-branch \
-            https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git \
-            weights-branch
-          cp -r weights/* weights-branch/ 2>/dev/null || true
-          cd weights-branch
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .
-          if ! git diff --cached --quiet; then
-            git commit -m "🤖 Retrain (2h walk-forward)"
-            git push origin weights
-          fi
+      - run: python scripts/upload_weights.py
