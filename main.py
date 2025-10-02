@@ -30,7 +30,7 @@ from exchange import BingXAsync
 from strategy import micro_score
 from risk import calc, max_drawdown_stop
 from store import cache
-from health import run_web
+from health_aio import run_web
 from settings import CONFIG
 from tf_selector import best_timeframe
 from news_filter import is_news_time
