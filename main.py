@@ -29,6 +29,15 @@ from store import cache
 from health import run_web
 from settings import CONFIG
 from tf_selector import best_timeframe
+# ----- временный трейс -----
+import traceback, sys
+try:
+    print("=== DEBUG: starting main ===")
+except Exception as e:
+    print("CRASH on import:", e, file=sys.stderr)
+    traceback.print_exc()
+    sys.exit(1)
+# ---------------------------
 
 logging.basicConfig(
     level=logging.INFO,
