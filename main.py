@@ -184,7 +184,13 @@ async def trade_loop(ex: BingXAsync):
     global PEAK_BALANCE
     while True:
         try:
-            equity = float((await ex.balance())["data"]["balance"])
+            # стало:
+            raw_bal = await ex.balance()
+            # BingX может вернуть {"data": {"balance": "123.45"}} или {"data": "123.45"}
+            if isinstance(raw_bal["data"], dict):
+                equity = float(raw_bal["data"]["balance"])
+            else:
+                equity = float(raw_bal["data"])
         except Exception as e:
             log.error("Balance fetch: %s\n%s", e, traceback.format_exc())
             await asyncio.sleep(5); continue
