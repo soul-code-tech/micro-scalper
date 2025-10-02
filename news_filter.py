@@ -6,6 +6,7 @@ HIGH_IMPACT_EVENTS = (
 )
 
 async def is_news_time(minutes_before_after: int = 5) -> bool:
+    return False
     now = dt.datetime.utcnow().replace(tzinfo=pytz.UTC)
     url = "https://cdn-nfs.faireconomy.media/ff_calendar_thisweek.json"
     async with aiohttp.ClientSession() as s:
