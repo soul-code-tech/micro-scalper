@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Переобучение лог-рег каждые 2 мес на последних 3000 баров
+Переобучение лог-рег на последних 3000 баров для всех тайм-фреймов
 """
 import os, sys, asyncio, pickle, datetime as dt
 from sklearn.linear_model import LogisticRegression
@@ -12,13 +12,12 @@ from exchange import BingXAsync
 from strategy import feat_vector
 
 SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT"]
-BARS = 3000          # последние 3 000 бар
-MONTHS = 2           # переобучаем каждые 2 мес
+BARS = 3000
+TIME_FRAMES = ["1m", "3m", "5m", "15m"]   # обучаем на всех ТФ
 
-async def train_one(sym: str, tf: str = "15m"):
+async def train_one(sym: str, tf: str):
     async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
         klines = await ex.klines(sym, tf, BARS)
-    # строим X, y
     X, y = [], []
     df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
     for i in range(50, len(df) - 1):
@@ -28,20 +27,20 @@ async def train_one(sym: str, tf: str = "15m"):
         y.append(target)
     X, y = np.array(X), np.array(y)
     if len(np.unique(y)) < 2:
-        print(f"⏭️  {sym} single class – skip")
+        print(f"⏭️  {sym} {tf} single class – skip")
         return
-
     clf = LogisticRegression(max_iter=1000)
     clf.fit(X, y)
     os.makedirs("weights", exist_ok=True)
-    with open(f"weights/{sym.replace('-', '')}.pkl", "wb") as f:
+    with open(f"weights/{sym.replace('-', '')}_{tf}.pkl", "wb") as f:
         pickle.dump({"clf": clf, "thr": 0.55}, f)
-    print(f"✅ {sym} updated")
+    print(f"✅ {sym} {tf} updated")
 
 async def main():
-    print("🚀 Walk-forward train (3000 bars)")
+    print("🚀 Walk-forward train (3000 bars, all TF)")
     for s in SYMBOLS:
-        await train_one(s)
+        for tf in TIME_FRAMES:
+            await train_one(s, tf)
 
 if __name__ == "__main__":
     asyncio.run(main())
