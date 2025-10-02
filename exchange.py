@@ -51,14 +51,17 @@ class BingXAsync:
     async def place_order(self, symbol: str, side: str, order_type: str,
                           quantity: float, price: Optional[float] = None, post_only: bool = True):
         path = "/openApi/swap/v2/trade/order"
+        # режим Hedge → LONG / SHORT, а не BOTH
+        hedge_side = "LONG" if side.upper() == "BUY" else "SHORT"
+
         payload = {
             "symbol": symbol,
             "side": side.upper(),
             "type": order_type.upper(),
             "quantity": f"{quantity:.3f}",
-            "positionSide": "BOTH",
-            "timeInForce": "GTC",          # только допустимое значение
-            "postOnly": post_only,         # флаг пост-онли
+            "positionSide": hedge_side,   # <- исправлено
+            "timeInForce": "GTC",
+            "postOnly": post_only,
         }
         if price:
             payload["price"] = f"{price:.5f}"
