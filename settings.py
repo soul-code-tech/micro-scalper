@@ -20,7 +20,7 @@ class ScalperConfig:
     ORDER_TO = 8
     HEALTH_PORT = int(os.getenv("PORT", "10000"))
 
-    TRADE_HOURS = (8, 17)          # UTC
+    TRADE_HOURS = (0, 24)          # UTC
     RR: float = 2.0                # Risk/Reward ratio
 
     # 👇 ДОБАВЛЕНО: доля позиции для частичного тейк-профита
