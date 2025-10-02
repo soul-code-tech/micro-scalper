@@ -4,7 +4,9 @@ import os
 @dataclass(slots=True)
 class ScalperConfig:
     SYMBOLS        = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT")
-    TIMEFRAME      = "15m"
+    # доступные тайм-фреймы (от меньшего к большему)
+    TIME_FRAMES = ("5m", "15m")
+    TF_RECHOICE_MINS = 240          # как часто перебираем
     MAX_POS        = int(os.getenv("MAX_POS", "3"))
 
     RISK_PER_TRADE = 0.25
