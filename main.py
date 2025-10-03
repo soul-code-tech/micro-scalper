@@ -205,7 +205,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                 if "leverage already set" not in str(e):
                     log.warning("⚠️  set_leverage %s: %s", sym, e)
 
-        try:
+               try:
             ci = await ex.get_contract_info(sym)
             min_qty = float(ci["data"]["minOrderQty"])
             min_nom = min_qty * px
@@ -213,11 +213,42 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.warning("❌ minOrderQty %s: %s", sym, e)
             return
 
-            if sizing.size * px < min_nom:
-                log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
-                return
-        except Exception as e:
-            log.warning("❌ %s data fail: %s", sym, e)
-            return   
+        if sizing.size * px < min_nom:
+            log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
+            return
 
+    except Exception as e:
+        log.warning("❌ %s data fail: %s", sym, e)
+        return
+
+# ========== ниже – УРОВЕНЬ МОДУЛЯ ==========
+async def download_weights_once():
+    repo = os.getenv("GITHUB_REPOSITORY", "your-login/your-repo")
+    for sym in CONFIG.SYMBOLS:
+        for tf in CONFIG.TIME_FRAMES:
+            fname = f"{sym.replace('-', '')}_{tf}.pkl"
+            local = f"weights/{fname}"
+            if os.path.exists(local):
+                continue
+            url = f"https://raw.githubusercontent.com/{repo}/weights/{fname}"
+            os.makedirs("weights", exist_ok=True)
+            try:
+                async with aiohttp.ClientSession() as s:
+                    async with s.get(url) as r:
+                        r.raise_for_status()
+                        with open(local, "wb") as f:
+                            f.write(await r.read())
+                print(f"✅ Скачан {local}")
+            except Exception as e:
+                print(f"⚠️  Нет весов {local}, используем дефолт")
+
+
+if __name__ == "__main__":
+    try:
+        print("=== DEBUG: запускаем main() ===")
+        asyncio.run(main())
+    except Exception as e:
+        print("CRASH in main():", e, file=sys.stderr)
+        traceback.print_exc()
+        sys.exit(1)
    
