@@ -3,21 +3,18 @@ import os
 import subprocess
 import sys
 
-# прокидываем переменные из окружения
-os.environ["GITHUB_TOKEN"] = os.getenv("GITHUB_TOKEN", "")
-os.environ["GITHUB_REPOSITORY"] = os.getenv("GITHUB_REPOSITORY", "")
+GITHUB_TOKEN      = os.getenv("GITHUB_TOKEN", "")
+GITHUB_REPOSITORY = os.getenv("GITHUB_REPOSITORY", "")
 
-if not (os.environ["GITHUB_TOKEN"] and os.environ["GITHUB_REPOSITORY"]):
+if not (GITHUB_TOKEN and GITHUB_REPOSITORY):
     print("⚠️  GITHUB_TOKEN или GITHUB_REPOSITORY не заданы – пропускаем пуш")
     sys.exit(0)
 
-REMOTE = f"https://x-access-token:{os.environ['GITHUB_TOKEN']}@github.com/{os.environ['GITHUB_REPOSITORY']}.git"
-
+REMOTE = f"https://x-access-token:{GITHUB_TOKEN}@github.com/{GITHUB_REPOSITORY}.git"
 
 def run(cmd):
     print(">>>", cmd)
     subprocess.run(cmd, shell=True, check=True)
-
 
 def main():
     if not os.path.exists("weights"):
@@ -34,7 +31,6 @@ def main():
     run("git diff --cached --quiet || (git commit -m '🤖 Retrain (15m walk-forward)' && git push origin weights)")
     os.chdir("..")
     subprocess.run(["rm", "-rf", tmp])
-
 
 if __name__ == "__main__":
     main()
