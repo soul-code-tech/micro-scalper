@@ -48,15 +48,12 @@ log = logging.getLogger("scalper")
 POS: dict[str, dict] = {}
 OPEN_ORDERS: dict[str, str] = {}   # symbol -> orderId
 PEAK_BALANCE: float = 0.0
-CONTRACTS_LOADED = False
-CONTRACT_MAP = {}
 
 
 def human_float(n: float) -> str:
     return f"{n:.5f}".rstrip("0").rstrip(".") if n > 0.01 else f"{n:.7f}"
 
 
-# ---------- position management ----------
 async def manage(ex: BingXAsync, sym: str, api_pos: dict):
     pos = POS.get(sym)
     if not pos:
@@ -76,7 +73,6 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
             pos["sl"] = new_sl
             log.info("⬇️  %s trail SL → %s", sym, human_float(new_sl))
 
-    # ---------- трейлинг стоп-ордера на бирже ----------
     if pos.get("sl_order_id"):
         try:
             await ex.amend_stop_order(sym, pos["sl_order_id"], new_sl)
@@ -90,11 +86,11 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
 
     if (side == "LONG" and mark >= tp1_px) or (side == "SHORT" and mark <= tp1_px):
         if not pos.get("tp1_done"):
-            qty60 = pos["qty"] * CONFIG.PARTIAL_TP
+            qty60 = pos["qty"] * 0.6
             await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", qty60)
             OPEN_ORDERS.pop(sym, None)
             await ex.cancel_all(sym)
-            log.info("⚡ %s TP1 %.0f%% at %s", sym, CONFIG.PARTIAL_TP * 100, human_float(mark))
+            log.info("⚡ %s TP1 60%% at %s", sym, human_float(mark))
             pos["tp1_done"] = True
 
     if pos.get("tp1_done"):
@@ -111,7 +107,6 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
                 log.info("⬇️  %s trail40 → %s", sym, human_float(new_sl40))
 
     if (side == "LONG" and mark <= pos["sl"]) or (side == "SHORT" and mark >= pos["sl"]):
-        # отменяем висящие SL/TP перед закрытием
         if pos.get("sl_order_id"):
             try:
                 await ex.cancel_all(sym)
@@ -146,7 +141,6 @@ async def guard(px: float, side: str, book: dict, sym: str) -> bool:
 
 
 async def think(ex: BingXAsync, sym: str, equity: float):
-    # --- контроль висящих ордеров ---
     if OPEN_ORDERS.get(sym):
         try:
             oo = await ex.fetch_order(sym, OPEN_ORDERS[sym])
@@ -162,17 +156,9 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     tf = await best_timeframe(ex, sym)
     try:
         klines = await ex.klines(sym, tf, 150)
-        klines = [
-            [bar["time"], bar["open"], bar["high"], bar["low"], bar["close"], bar["volume"]]
-            for bar in klines
-        ]
         book = await ex.order_book(sym, 5)
     except Exception as e:
         log.warning("❌ %s data fail: %s", sym, e)
-        return
-
-    if not klines or len(klines[-1]) < 6:
-        log.warning("⏭️ %s – klines пустые или не хватает полей", sym)
         return
 
     score = micro_score(klines)
@@ -185,35 +171,27 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
              sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
 
-    # --- фильтр времени ---
     utc_hour = datetime.now(timezone.utc).hour
-    trade_hours = CONFIG.TUNE.get(sym, {}).get("TRADE_HOURS", CONFIG.TRADE_HOURS)
-    if not (trade_hours[0] <= utc_hour < trade_hours[1]):
+    if not (CONFIG.TRADE_HOURS[0] <= utc_hour < CONFIG.TRADE_HOURS[1]):
         log.info("⏭️  %s – вне торгового окна", sym)
         return
 
-    # --- фильтр новостей ---
     if await is_news_time(5):
         log.info("⏭️  %s – высокий импакт новостей", sym)
         return
 
-    min_atr = CONFIG.TUNE.get(sym, {}).get("MIN_ATR_PC", CONFIG.MIN_ATR_PC)
-    if atr_pc < min_atr:
-        log.info("⏭️  %s low atr (%.5f < %.5f)", sym, atr_pc, min_atr)
+    if atr_pc < CONFIG.MIN_ATR_PC:
+        log.info("⏭️  %s low atr", sym)
         return
-
     if vol_usd < CONFIG.MIN_VOL_USD:
         log.info("⏭️  %s low vol", sym)
         return
-
     if not side:
         log.info("⏭️  %s no side", sym)
         return
-
     if len(POS) >= CONFIG.MAX_POS:
         log.info("⏭️  %s max pos reached", sym)
         return
-
     if not await guard(px, side, book, sym):
         return
 
@@ -221,23 +199,20 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     if sizing.size <= 0:
         log.info("⏭️  %s sizing zero", sym)
         return
-
-    # --- ставим плечо 50× для обеих сторон (один раз) ---
     if sym not in POS and sym not in OPEN_ORDERS:
         try:
-            await ex.set_leverage(symbol=sym, leverage=50, side="LONG")
-            await ex.set_leverage(symbol=sym, leverage=50, side="SHORT")
-            log.info("⚙️  %s leverage set to 50x", sym)
-        except Exception as e:
-            log.warning("⚠️  set_leverage %s: %s", sym, e)
+            await ex.set_leverage(sym, 50)
+        except RuntimeError as e:
+            if "leverage already set" not in str(e):
+                log.warning("⚠️  set_leverage %s: %s", sym, e)
 
-    # --- получаем minOrderQty из кэша контрактов ---
-    if sym not in CONTRACT_MAP:
-        log.warning("⏭️  %s – contract info missing", sym)
+    try:
+        ci = await ex.get_contract_info(sym)
+        min_qty = float(ci["data"]["minOrderQty"])
+        min_nom = min_qty * px
+    except Exception as e:
+        log.warning("❌ minOrderQty %s: %s", sym, e)
         return
-
-    min_qty = float(CONTRACT_MAP[sym]["minOrderQty"])
-    min_nom = min_qty * px
 
     if sizing.size * px < min_nom:
         log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
@@ -262,7 +237,6 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
                  sym, side, sizing.size, human_float(px),
                  human_float(sizing.sl_px), human_float(sizing.tp_px))
-        # --- выставляем реальный SL и TP на бирже ---
         sl_side = "SELL" if side == "LONG" else "BUY"
         tp_side = "SELL" if side == "LONG" else "BUY"
 
@@ -297,36 +271,15 @@ async def download_weights_once():
                 print(f"⚠️  Нет весов {local}, используем дефолт")
 
 
-async def load_contracts_once(ex: BingXAsync):
-    global CONTRACT_MAP, CONTRACTS_LOADED
-    if CONTRACTS_LOADED:
-        return
-    try:
-        res = await ex.get_all_contracts()
-        contracts = res["data"]
-        CONTRACT_MAP = {c["symbol"]: c for c in contracts}
-        CONTRACTS_LOADED = True
-        log.info("✅ Загружено контрактов: %d", len(CONTRACT_MAP))
-    except Exception as e:
-        log.error("❌ Не удалось загрузить контракты: %s", e)
-        raise
-
-
 async def trade_loop(ex: BingXAsync):
     global PEAK_BALANCE
     await download_weights_once()
-    await load_contracts_once(ex)  # ← критически важно!
-
     while True:
         try:
             raw_bal = await ex.balance()
-            log.info("RAW balance response: %s", raw_bal)
             data = raw_bal["data"]
             if isinstance(data, dict) and "balance" in data:
-                if isinstance(data["balance"], dict):
-                    equity = float(data["balance"]["equity"])
-                else:
-                    equity = float(data["balance"])
+                equity = float(data["balance"]["equity"])
             else:
                 equity = float(data)
         except Exception as e:
@@ -370,8 +323,6 @@ def shutdown(sig, frame):
 
 
 async def main():
-    signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
     asyncio.create_task(start_health())
     async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
         await trade_loop(ex)
