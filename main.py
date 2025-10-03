@@ -73,6 +73,14 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
             pos["sl"] = new_sl
             log.info("⬇️  %s trail SL → %s", sym, human_float(new_sl))
 
+    # ---------- трейлинг стоп-ордера на бирже ----------
+    if pos.get("sl_order_id"):
+        try:
+            await ex.amend_stop_order(sym, pos["sl_order_id"], new_sl)
+            log.info("⬆️  %s amend SL → %s (на бирже)", sym, human_float(new_sl))
+        except Exception as e:
+            log.warning("❌ не смог обновить SL-ордер %s: %s", sym, e)
+
     risk_dist = abs(pos["entry"] - pos["sl_orig"])
     tp1_dist = risk_dist * CONFIG.TP1_MULT
     tp1_px = pos["entry"] + tp1_dist if side == "LONG" else pos["entry"] - tp1_dist
@@ -100,6 +108,14 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
                 log.info("⬇️  %s trail40 → %s", sym, human_float(new_sl40))
 
     if (side == "LONG" and mark <= pos["sl"]) or (side == "SHORT" and mark >= pos["sl"]):
+        # отменяем висящие SL/TP перед закрытием
+        if pos.get("sl_order_id"):
+            try:
+                await ex.cancel_all(sym)
+                log.info("🧹 %s cancelled SL/TP orders", sym)
+            except Exception as e:
+                log.warning("❌ не смог отменить SL/TP %s: %s", sym, e)
+
         await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["qty"])
         POS.pop(sym)
         OPEN_ORDERS.pop(sym, None)
@@ -242,6 +258,18 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
                  sym, side, sizing.size, human_float(px),
                  human_float(sizing.sl_px), human_float(sizing.tp_px))
+        # --- выставляем реальный SL и TP на бирже ---
+        sl_side = "SELL" if side == "LONG" else "BUY"
+        tp_side = "SELL" if side == "LONG" else "BUY"
+
+        try:
+            sl_order = await ex.place_stop_order(sym, sl_side, sizing.size, sizing.sl_px, "STOP_MARKET")
+            tp_order = await ex.place_stop_order(sym, tp_side, sizing.size, sizing.tp_px, "TAKE_PROFIT_MARKET")
+            POS[sym]["sl_order_id"] = sl_order["data"]["orderId"]
+            POS[sym]["tp_order_id"] = tp_order["data"]["orderId"]
+            log.info("🔒 %s SL=%s TP=%s (ордера на бирже)", sym, human_float(sizing.sl_px), human_float(sizing.tp_px))
+        except Exception as e:
+            log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
 
 
 async def download_weights_once():
