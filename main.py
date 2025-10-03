@@ -61,61 +61,62 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
     mark = float(api_pos["markPrice"])
     side = pos["side"]
 
+    # === 1. Trailing SL (0.8×ATR) ===
     atr_dist = pos["atr"] * CONFIG.ATR_MULT_SL
     if side == "LONG":
-        new_sl = mark - atr_dist
-        if new_sl > pos["sl"]:
-            pos["sl"] = new_sl
-            log.info("⬆️  %s trail SL → %s", sym, human_float(new_sl))
+        new_sl = max(pos["sl"], mark - atr_dist)
     else:
-        new_sl = mark + atr_dist
-        if new_sl < pos["sl"]:
-            pos["sl"] = new_sl
-            log.info("⬇️  %s trail SL → %s", sym, human_float(new_sl))
+        new_sl = min(pos["sl"], mark + atr_dist)
 
-    if pos.get("sl_order_id"):
-        try:
-            await ex.amend_stop_order(sym, pos["sl_order_id"], new_sl)
-            log.info("⬆️  %s amend SL → %s (на бирже)", sym, human_float(new_sl))
-        except Exception as e:
-            log.warning("❌ не смог обновить SL-ордер %s: %s", sym, e)
+    if new_sl != pos["sl"]:
+        pos["sl"] = new_sl
+        log.info("⬆️" if side == "LONG" else "⬇️", "%s trail SL → %s", sym, human_float(new_sl))
+        if pos.get("sl_order_id"):
+            try:
+                await ex.amend_stop_order(sym, pos["sl_order_id"], new_sl)
+                log.info("🔒 %s amend SL on exchange", sym)
+            except Exception as e:
+                log.warning("❌ amend SL %s: %s", sym, e)
 
-    risk_dist = abs(pos["entry"] - pos["sl_orig"])
-    tp1_dist = risk_dist * CONFIG.TP1_MULT
-    tp1_px = pos["entry"] + tp1_dist if side == "LONG" else pos["entry"] - tp1_dist
-
-    if (side == "LONG" and mark >= tp1_px) or (side == "SHORT" and mark <= tp1_px):
-        if not pos.get("tp1_done"):
+    # === 2. TP1: 60% при 1.2×ATR ===
+    if not pos.get("tp1_done"):
+        risk_dist = abs(pos["entry"] - pos["sl_orig"])
+        tp1_px = pos["entry"] + risk_dist * CONFIG.TP1_MULT if side == "LONG" else pos["entry"] - risk_dist * CONFIG.TP1_MULT
+        if (side == "LONG" and mark >= tp1_px) or (side == "SHORT" and mark <= tp1_px):
             qty60 = pos["qty"] * 0.6
             await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", qty60)
-            OPEN_ORDERS.pop(sym, None)
-            await ex.cancel_all(sym)
-            log.info("⚡ %s TP1 60%% at %s", sym, human_float(mark))
             pos["tp1_done"] = True
+            log.info("⚡ %s TP1 60%% at %s", sym, human_float(mark))
 
+    # === 3. Trail40: остаток 40% с трейлингом 0.8×ATR ===
     if pos.get("tp1_done"):
-        trail_dist = risk_dist * CONFIG.TRAIL_MULT
+        trail_dist = abs(pos["entry"] - pos["sl_orig"]) * CONFIG.TRAIL_MULT
         if side == "LONG":
             new_sl40 = mark - trail_dist
             if new_sl40 > pos["sl"]:
                 pos["sl"] = new_sl40
-                log.info("⬆️  %s trail40 → %s", sym, human_float(new_sl40))
+                # обновить ордер (если нужно)
         else:
             new_sl40 = mark + trail_dist
             if new_sl40 < pos["sl"]:
                 pos["sl"] = new_sl40
-                log.info("⬇️  %s trail40 → %s", sym, human_float(new_sl40))
 
+    # === 4. Breakeven после 1R ===
+    if not pos.get("breakeven_done"):
+        risk_dist = abs(pos["entry"] - pos["sl_orig"])
+        be_px = pos["entry"] + risk_dist if side == "LONG" else pos["entry"] - risk_dist
+        if (side == "LONG" and mark >= be_px) or (side == "SHORT" and mark <= be_px):
+            # Закрыть часть (например, 20%)
+            part_qty = pos["qty"] * 0.2
+            await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", part_qty)
+            pos["breakeven_done"] = True
+            pos["sl"] = pos["entry"]  # breakeven
+            log.info("🛡️ %s breakeven @ %s", sym, human_float(pos["entry"]))
+
+    # === 5. Стоп-аут по SL ===
     if (side == "LONG" and mark <= pos["sl"]) or (side == "SHORT" and mark >= pos["sl"]):
-        if pos.get("sl_order_id"):
-            try:
-                await ex.cancel_all(sym)
-                log.info("🧹 %s cancelled SL/TP orders", sym)
-            except Exception as e:
-                log.warning("❌ не смог отменить SL/TP %s: %s", sym, e)
-
         await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["qty"])
-        POS.pop(sym)
+        POS.pop(sym, None)
         OPEN_ORDERS.pop(sym, None)
         await ex.cancel_all(sym)
         log.info("🛑 %s stopped at %s", sym, human_float(mark))
@@ -154,9 +155,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             return
 
     tf = await best_timeframe(ex, sym)
-    try:
-        klines = await ex.klines(sym, tf, 150)
-        book = await ex.order_book(sym, 5)
+    klines = await ex.klines(sym, tf, 150)
+    score = micro_score(klines, f"{sym.replace('-', '')}_{tf}")  # ← передаём имя модели
     except Exception as e:
         log.warning("❌ %s data fail: %s", sym, e)
         return
