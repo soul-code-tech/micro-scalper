@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+import time
+from typing import Dict
+from strategy import micro_score
+from exchange import BingXAsync  # Добавьте эту строку
+
+CACHE: Dict[str, tuple] = {}   # symbol -> (tf, expire_ts)
+
 async def best_timeframe(ex: BingXAsync, sym: str) -> str:
     now = time.time()
     cached = CACHE.get(sym)
@@ -5,9 +13,9 @@ async def best_timeframe(ex: BingXAsync, sym: str) -> str:
         return cached[0]
 
     signals = {}
-    for tf in ("5m", "15m"):  # BingX поддерживает 5m и 15m
+    for tf in ("5m", "15m"):
         try:
-            klines = await ex.klines(sym, tf, 100)  # limit=100
+            klines = await ex.klines(sym, tf, 100)
         except Exception as e:
             log.warning("❌ %s klines fail: %s", sym, e)
             continue
