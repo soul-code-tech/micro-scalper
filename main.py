@@ -202,6 +202,12 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("⏭️  %s sizing zero", sym)
         return
 
+    # --- проверяем минимальный номинал BingX (233 USDT) ---
+    min_nominal = 233.0
+    if sizing.size * px < min_nominal:
+        log.info("⏭️  %s nominal %.2f < %.2f USDT – пропуск", sym, sizing.size * px, min_nominal)
+        return
+
     bingx_side = "BUY" if side == "LONG" else "SELL"
     order = await ex.place_order(sym, bingx_side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
     if order and order.get("code") == 0:
