@@ -1,6 +1,10 @@
 import pandas as pd
-import pickle
-import os
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+
+N_LAG = 5          # сколько лагов каждой фичи
+MODEL = {}         # символ -> (scaler, clf, thr)
 
 def rsi(series: pd.Series, period: int = 14) -> float:
     delta = series.diff()
@@ -16,46 +20,35 @@ def atr(df: pd.DataFrame, period: int = 14) -> float:
     tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
     return float(tr.rolling(period).mean().iloc[-1])
 
-def feat_vector(klines: list) -> pd.Series:
-    df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
+def micro_structure(df: pd.DataFrame) -> pd.Series:
+    """
+    30 фичей: лаги + дельты для RSI, ATR, EMA-dev, vol-ratio
+    """
     c, h, l, v = df["c"], df["h"], df["l"], df["v"]
-    atr_pc = atr(df, 14) / c.iloc[-1]
+
+    # базовые индикаторы
     rsi_val = rsi(c, 14)
-    ema9  = c.ewm(span=9).mean().iloc[-1]
-    ema21 = c.ewm(span=21).mean().iloc[-1]
-    vol_sma = v.rolling(20).mean().iloc[-1]
-    vol_ratio = v.iloc[-1] / (vol_sma + 1e-8)
-    return pd.Series([atr_pc, rsi_val, (c.iloc[-1] - ema9) / ema9, vol_ratio])
+    atr_val = atr(df, 14)
+    ema9  = c.ewm(span=9).mean()
+    ema21 = c.ewm(span=21).mean()
+    ema_dev = (c - ema9) / ema9
+    vol_sma = v.rolling(20).mean()
+    vol_ratio = v / (vol_sma + 1e-8)
 
-def load_model(sym_tf: str = "DOGEUSDT_5m"):
-    """Загружает модель по имени символа и ТФ"""
-    path = f"weights/{sym_tf}.pkl"
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            return pickle.load(f)
-    return None
+    # DataFrame для удобства лагов
+    ind = pd.DataFrame({
+        "rsi": rsi_val,
+        "atr": atr_val,
+        "ema_dev": ema_dev,
+        "vol_r": vol_ratio,
+    }).iloc[-N_LAG-1:]          # берём N_LAG+1 бар
 
-def micro_score(klines: list, sym_tf: str = None) -> dict:
-    model_data = load_model(sym_tf) if sym_tf else None
-    fv = feat_vector(klines)
-    atr_pc, rsi_val, ema_dev, vol_ratio = fv
+    # строим лаги и дельты
+    feats = []
+    for col in ind.columns:
+        for lag in range(1, N_LAG+1):
+            feats.append(ind[col].shift(lag).iloc[-1])
+        # дельта последнего шага
+        feats.append(ind[col].diff().iloc[-1])
 
-    long_raw = short_raw = 0.0
-
-    if model_data:
-        # Используем ML-модель
-        clf = model_data["clf"]
-        thr = model_data.get("thr", 0.55)
-        proba = clf.predict_proba([fv])[0][1]  # вероятность роста
-        if proba > thr:
-            long_raw = min(1.0, (proba - thr) * 3)
-        elif proba < (1 - thr):
-            short_raw = min(1.0, ((1 - proba) - thr) * 3)
-    else:
-        # Fallback на правила
-        if 40 < rsi_val < 70 and ema_dev > 0 and vol_ratio > 0.6 and atr_pc >= 0.0001:
-            long_raw = min(1.0, vol_ratio / 3)
-        if 30 < rsi_val < 60 and ema_dev < 0 and vol_ratio > 0.6 and atr_pc >= 0.0001:
-            short_raw = min(1.0, vol_ratio / 3)
-
-    return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
+    return pd.Series(feats)     # 4*(N_LAG+1) = 30 чисел
