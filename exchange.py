@@ -14,11 +14,13 @@ class BingXAsync:
     def __init__(self, api_key: str, secret: str):
         self.key = api_key
         self.sec = secret
-        self.base = "https://open-api.bingx.com"  # Удалены лишние пробелы
+        self.base = "https://open-api.bingx.com"  # ← ИСПРАВЛЕНО: пробелы удалены
         self.sess: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
-        self.sess = aiohttp.ClientSession()
+        self.sess = aiohttp.ClientSession(
+            headers={"User-Agent": "Quantum-Scalper/1.0"}
+        )
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
