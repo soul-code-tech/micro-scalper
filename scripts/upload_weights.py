@@ -6,6 +6,11 @@ import sys
 GITHUB_TOKEN      = os.getenv("GITHUB_TOKEN", "")
 GITHUB_REPOSITORY = os.getenv("GITHUB_REPOSITORY", "")
 
+# ---------- отладка ----------
+print(f"DEBUG: GITHUB_TOKEN='{GITHUB_TOKEN[:10]}{'...' if GITHUB_TOKEN else ''}'")
+print(f"DEBUG: GITHUB_REPOSITORY='{GITHUB_REPOSITORY}'")
+# ------------------------------
+
 if not (GITHUB_TOKEN and GITHUB_REPOSITORY):
     print("⚠️  GITHUB_TOKEN или GITHUB_REPOSITORY не заданы – пропускаем пуш")
     sys.exit(0)
