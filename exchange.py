@@ -5,10 +5,20 @@ import hashlib
 import aiohttp
 from typing import Optional, Dict, Any
 import logging
+import urllib.parse
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
+
+def _sign_query(self, payload: dict) -> str:
+    """Сортируем по ключу, добавляем timestamp, подписываем HMAC-SHA256"""
+    payload = payload or {}
+    payload["timestamp"] = str(int(time.time() * 1000))
+    payload["recvWindow"] = "5000"          # 5 с окно
+    query  = "&".join(f"{k}={v}" for k, v in sorted(payload.items()))
+    sign   = hmac.new(self.sec.encode(), query.encode(), hashlib.sha256).hexdigest()
+    return query + "&signature=" + sign
 
 class BingXAsync:
     def __init__(self, api_key: str, secret: str):
@@ -91,36 +101,15 @@ class BingXAsync:
             return {"bids": [], "asks": []}
 
     # ---------- ПРИВАТНЫЕ МЕТОДЫ ----------
-    async def balance(self):
-        raw = await self._signed_request("GET", "/openApi/swap/v2/user/balance")
-        log.info("=== RAW BALANCE === %s", raw)          # ← отладка
-
-        data = raw.get("data", [])
-        log.info("=== DATA TYPE === %s | VALUE === %s", type(data), data)
-
-        # если пришёл список – берём 1-й элемент, если он dict
-        if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
-            equity_str = str(data[0].get("balance", {}).get("equity", "0"))
-        # если сразу dict – берём из него
-        elif isinstance(data, dict):
-            equity_str = str(data.get("balance", {}).get("equity", "0"))
-        # иначе – используем как строку
-        else:
-            equity_str = str(data)
-
-        log.info("=== EQUITY STR === %s", equity_str)
-        try:
-            return float(equity_str)
-        except ValueError:
-            log.error("=== CANNOT PARSE === %s", equity_str)
-            return 0.0
-    async def set_leverage(self, symbol: str, leverage: int, side: str) -> dict:
-        """Установить плечо (требуется side: 'LONG' или 'SHORT')"""
-        return await self._signed_request("POST", "/openApi/swap/v2/trade/leverage", {
-            "symbol": symbol,
-            "leverage": leverage,
-            "side": side
-        })
+async def balance(self):
+    query = self._sign_query({})
+    url   = f"{self.base}/openApi/swap/v3/user/balance?{query}"
+    headers = {"X-BX-APIKEY": self.key}
+    async with self.sess.get(url, headers=headers) as r:
+        js = await r.json()
+        if js.get("code") != 0:
+            raise RuntimeError(f"BingX balance error: {js}")
+        return js
 
     async def place_order(self, symbol: str, side: str, order_type: str,
                           quantity: float, price: Optional[float] = None, post_only: bool = True):
