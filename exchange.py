@@ -75,28 +75,28 @@ class BingXAsync:
         return await self._request("POST", path, payload)
 
     async def place_stop_order(self, symbol: str, side: str, qty: float,
-                           stop_px: float, order_type: str = "STOP_MARKET") -> dict:
-    path = "/openApi/swap/v2/trade/order"
-    payload = {
-        "symbol": symbol,
-        "side": side.upper(),
-        "type": order_type,
-        "quantity": f"{qty:.3f}",
-        "stopPrice": f"{stop_px:.5f}",
-        "positionSide": "LONG" if side.upper() == "BUY" else "SHORT",
-        "timeInForce": "GTC",
-    }
-    return await self._request("POST", path, payload)
- 
+                            stop_px: float, order_type: str = "STOP_MARKET") -> dict:
+        path = "/openApi/swap/v2/trade/order"
+        payload = {
+            "symbol": symbol,
+            "side": side.upper(),
+            "type": order_type,
+            "quantity": f"{qty:.3f}",
+            "stopPrice": f"{stop_px:.5f}",
+            "positionSide": "LONG" if side.upper() == "BUY" else "SHORT",
+            "timeInForce": "GTC",
+        }
+        return await self._request("POST", path, payload)
+
     async def amend_stop_order(self, symbol: str, order_id: str,
-                           stop_px: float) -> dict:
-    path = "/openApi/swap/v2/trade/order"
-    payload = {
-        "symbol": symbol,
-        "orderId": order_id,
-        "stopPrice": f"{stop_px:.5f}",
-    }
-    return await self._request("PUT", path, payload)
+                               stop_px: float) -> dict:
+        path = "/openApi/swap/v2/trade/order"
+        payload = {
+            "symbol": symbol,
+            "orderId": order_id,
+            "stopPrice": f"{stop_px:.5f}",
+        }
+        return await self._request("PUT", path, payload)
 
     async def close_position(self, symbol: str, side: str, quantity: float):
         return await self.place_order(symbol, side, "MARKET", quantity, post_only=False)
