@@ -59,5 +59,7 @@ def calc(entry: float, atr: float, side: str, equity: float, sym: str,
 
 # ------------------------------ стоп-аут ------------------------------
 def max_drawdown_stop(current_equity: float, peak: float) -> bool:
+    if peak <= 0:
+        return False
     dd = (peak - current_equity) / peak * 100
     return dd > CONFIG.MAX_DD_STOP
