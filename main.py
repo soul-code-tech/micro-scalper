@@ -203,7 +203,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         return
 
     # --- проверяем минимальный номинал BingX (233 USDT) ---
-    min_nominal = 10.0
+    min_nominal = 233.0
     if sizing.size * px < min_nominal:
         log.info("⏭️  %s nominal %.2f < %.2f USDT – пропуск", sym, sizing.size * px, min_nominal)
         return
