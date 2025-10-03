@@ -18,8 +18,8 @@ async def health(request: web.Request) -> web.Response:
     try:
         async with BingXAsync(os.getenv("BINGX_API_KEY"),
                               os.getenv("BINGX_SECRET_KEY")) as ex:
-            info = await ex.balance()
-            data = info.get("data", "0")
+            equity = await ex.balance()  # это уже float
+            bal = equity
 
         # ⬅️ теперь ВНУТРИ try
         if isinstance(data, dict) and "balance" in data:
