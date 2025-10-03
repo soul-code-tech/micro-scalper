@@ -4,7 +4,7 @@ import os
 @dataclass(slots=True)
 class ScalperConfig:
     # ---------- монеты (низкий minNominal) ----------
-    SYMBOLS = ("PEPE-USDT", "DOGE-USDT", "XRP-USDT")
+    SYMBOLS = ( "DOGE-USDT", "XRP-USDT")
 
     # ---------- тайм-фреймы ----------
     TIME_FRAMES = ("1m", "3m", "5m", "15m")
@@ -37,13 +37,7 @@ class ScalperConfig:
 
     # ---------- индивидуальные настройки ----------
     TUNE = {
-        "PEPE-USDT": {
-            "MIN_ATR_PC": 0.00035,
-            "MAX_SPREAD": 0.0010,
-            "TRADE_HOURS": (0, 24),
-            "TP1_MULT": 1.5,
-        },
-        "DOGE-USDT": {
+            "DOGE-USDT": {
             "MIN_ATR_PC": 0.00030,
             "MAX_SPREAD": 0.0008,
             "TRADE_HOURS": (0, 24),
