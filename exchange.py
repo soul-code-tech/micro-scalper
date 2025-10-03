@@ -72,7 +72,7 @@ class BingXAsync:
 
     async def klines(self, symbol: str, interval: str = "1m", limit: int = 100):
         try:
-            data = await self._public_get("/openApi/cswap/v1/market/klines", {
+            data = await self._public_get("/openApi/swap/v2/market/klines", {
                 "symbol": symbol,
                 "interval": interval,
                 "limit": limit
