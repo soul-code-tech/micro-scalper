@@ -22,12 +22,14 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - env:
+      - name: train models
+        env:
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
         run: python scripts/train_all.py
 
-        - env:
-          GITHUB_TOKEN: ${{ secrets.PAT }} 
+      - name: upload weights
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: python scripts/upload_weights.py
