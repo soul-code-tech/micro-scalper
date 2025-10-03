@@ -213,93 +213,11 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.warning("❌ minOrderQty %s: %s", sym, e)
             return
 
-        if sizing.size * px < min_nom:
-            log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
-            return
-
-    async def download_weights_once():
-    repo = os.getenv("GITHUB_REPOSITORY", "your-login/your-repo")
-    for sym in CONFIG.SYMBOLS:
-        for tf in CONFIG.TIME_FRAMES:
-            fname = f"{sym.replace('-', '')}_{tf}.pkl"
-            local = f"weights/{fname}"
-            if os.path.exists(local):
-                continue
-            url = f"https://raw.githubusercontent.com/{repo}/weights/{fname}"
-            os.makedirs("weights", exist_ok=True)
-            try:
-                async with aiohttp.ClientSession() as s:
-                    async with s.get(url) as r:
-                        r.raise_for_status()
-                        with open(local, "wb") as f:
-                            f.write(await r.read())
-                print(f"✅ Скачан {local}")
-            except Exception as e:
-                print(f"⚠️  Нет весов {local}, используем дефолт")
-
-
-async def trade_loop(ex: BingXAsync):
-    global PEAK_BALANCE
-    await download_weights_once()
-    while True:
-        try:
-            raw_bal = await ex.balance()
-            data = raw_bal["data"]
-            if isinstance(data, dict) and "balance" in data:
-                equity = float(data["balance"]["equity"])
-            else:
-                equity = float(data)
+            if sizing.size * px < min_nom:
+                log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
+                return
         except Exception as e:
-            log.error("Balance fetch: %s\n%s", e, traceback.format_exc())
-            await asyncio.sleep(5)
-            continue
+            log.warning("❌ %s data fail: %s", sym, e)
+            return   
 
-        if PEAK_BALANCE == 0:
-            PEAK_BALANCE = equity
-        if max_drawdown_stop(equity, PEAK_BALANCE):
-            log.error("🛑 Max DD – pause")
-            await asyncio.sleep(60)
-            continue
-        if equity > PEAK_BALANCE:
-            PEAK_BALANCE = equity
-        cache.set("balance", equity)
-        log.info("💰 Equity %.2f $ (peak %.2f $)", equity, PEAK_BALANCE)
-
-        try:
-            api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
-        except Exception as e:
-            log.error("Positions fetch: %s\n%s", e, traceback.format_exc())
-            await asyncio.sleep(5)
-            continue
-
-        for sym, p in api_pos.items():
-            if float(p["positionAmt"]) != 0:
-                await manage(ex, sym, p)
-
-        for sym in CONFIG.SYMBOLS:
-            if sym in api_pos:
-                continue
-            await think(ex, sym, equity)
-
-        await asyncio.sleep(2)
-
-
-def shutdown(sig, frame):
-    log.info("⏹️  SIGTERM/SIGINT – shutting down")
-    sys.exit(0)
-
-
-async def main():
-    asyncio.create_task(start_health())
-    async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
-        await trade_loop(ex)
-
-
-if __name__ == "__main__":
-    try:
-        print("=== DEBUG: запускаем main() ===")
-        asyncio.run(main())
-    except Exception as e:
-        print("CRASH in main():", e, file=sys.stderr)
-        traceback.print_exc()
-        sys.exit(1)
+   
