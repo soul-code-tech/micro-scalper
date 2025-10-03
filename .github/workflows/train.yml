@@ -27,4 +27,7 @@ jobs:
           BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
         run: python scripts/train_all.py
 
-      - run: python scripts/upload_weights.py
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python scripts/upload_weights.py
