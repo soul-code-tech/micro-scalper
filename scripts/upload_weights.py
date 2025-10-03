@@ -21,6 +21,7 @@ def run(cmd):
     print(">>>", cmd)
     subprocess.run(cmd, shell=True, check=True)
 
+
 def main():
     if not os.path.exists("weights"):
         print("No weights to upload")
@@ -36,6 +37,7 @@ def main():
     run("git diff --cached --quiet || (git commit -m '🤖 Retrain (15m walk-forward)' && git push origin weights)")
     os.chdir("..")
     subprocess.run(["rm", "-rf", tmp])
+
 
 if __name__ == "__main__":
     main()
