@@ -242,6 +242,50 @@ async def download_weights_once():
             except Exception as e:
                 print(f"⚠️  Нет весов {local}, используем дефолт")
                 
+async def trade_loop(ex: BingXAsync):
+    global PEAK_BALANCE
+    await download_weights_once()
+    while True:
+        try:
+            raw_bal = await ex.balance()
+            data = raw_bal["data"]
+            if isinstance(data, dict) and "balance" in data:
+                equity = float(data["balance"]["equity"])
+            else:
+                equity = float(data)
+        except Exception as e:
+            log.error("Balance fetch: %s\n%s", e, traceback.format_exc())
+            await asyncio.sleep(5)
+            continue
+
+        if PEAK_BALANCE == 0:
+            PEAK_BALANCE = equity
+        if max_drawdown_stop(equity, PEAK_BALANCE):
+            log.error("🛑 Max DD – pause")
+            await asyncio.sleep(60)
+            continue
+        if equity > PEAK_BALANCE:
+            PEAK_BALANCE = equity
+        cache.set("balance", equity)
+        log.info("💰 Equity %.2f $ (peak %.2f $)", equity, PEAK_BALANCE)
+
+        try:
+            api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
+        except Exception as e:
+            log.error("Positions fetch: %s\n%s", e, traceback.format_exc())
+            await asyncio.sleep(5)
+            continue
+
+        for sym, p in api_pos.items():
+            if float(p["positionAmt"]) != 0:
+                await manage(ex, sym, p)
+
+        for sym in CONFIG.SYMBOLS:
+            if sym in api_pos:
+                continue
+            await think(ex, sym, equity)
+
+        await asyncio.sleep(2)                
 async def main():
     asyncio.create_task(start_health())
     async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
