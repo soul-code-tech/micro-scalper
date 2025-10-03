@@ -197,15 +197,30 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     if not await guard(px, side, book, sym):
         return
 
-    sizing = calc(px, atr_pc * px, side, equity)
+       sizing = calc(px, atr_pc * px, side, equity, sym)
     if sizing.size <= 0:
         log.info("⏭️  %s sizing zero", sym)
         return
 
-    # --- проверяем минимальный номинал BingX (233 USDT) ---
-    min_nominal = 233.0
-    if sizing.size * px < min_nominal:
-        log.info("⏭️  %s nominal %.2f < %.2f USDT – пропуск", sym, sizing.size * px, min_nominal)
+    # --- ставим плечо 50× (один раз) ---
+    if sym not in POS and sym not in OPEN_ORDERS:
+        try:
+            await ex.set_leverage(sym, 50)
+        except RuntimeError as e:
+            if "leverage already set" not in str(e):
+                log.warning("⚠️  set_leverage %s: %s", sym, e)
+
+    # --- динамический минимальный номинал ---
+    try:
+        ci = await ex.get_contract_info(sym)
+        min_qty = float(ci["data"]["minOrderQty"])
+        min_nom = min_qty * px
+    except Exception as e:
+        log.warning("❌ minOrderQty %s: %s", sym, e)
+        return
+
+    if sizing.size * px < min_nom:
+        log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
         return
 
     bingx_side = "BUY" if side == "LONG" else "SELL"
