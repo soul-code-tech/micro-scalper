@@ -5,87 +5,66 @@ import hashlib
 import aiohttp
 from typing import Optional, Dict, Any
 import logging
-import urllib.parse
 
-# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-def _sign_query(self, payload: dict) -> str:
-    """Сортируем по ключу, добавляем timestamp, подписываем HMAC-SHA256"""
-    payload = payload or {}
-    payload["timestamp"] = str(int(time.time() * 1000))
-    payload["recvWindow"] = "5000"          # 5 с окно
-    query  = "&".join(f"{k}={v}" for k, v in sorted(payload.items()))
-    sign   = hmac.new(self.sec.encode(), query.encode(), hashlib.sha256).hexdigest()
-    return query + "&signature=" + sign
 
 class BingXAsync:
     def __init__(self, api_key: str, secret: str):
         self.key = api_key
         self.sec = secret
-        self.base = "https://open-api.bingx.com"  # ← ИСПРАВЛЕНО: пробелы удалены
+        self.base = "https://open-api.bingx.com"
         self.sess: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
-        self.sess = aiohttp.ClientSession(
-            headers={"User-Agent": "Quantum-Scalper/1.0"}
-        )
+        self.sess = aiohttp.ClientSession(headers={"User-Agent": "Quantum-Scalper/1.0"})
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
         if self.sess:
             await self.sess.close()
 
+    # ---------- ПОДПИСЬ ----------
     def _sign(self, query: str) -> str:
         return hmac.new(self.sec.encode(), query.encode(), hashlib.sha256).hexdigest()
 
-    # ---------- ПУБЛИЧНЫЙ ЗАПРОС (без подписи) ----------
+    def _sign_query(self, payload: dict) -> str:
+        """Сортируем, добавляем timestamp, подписываем"""
+        payload = payload or {}
+        payload["timestamp"] = str(int(time.time() * 1000))
+        payload["recvWindow"] = "5000"
+        query = "&".join(f"{k}={v}" for k, v in sorted(payload.items()))
+        sign = self._sign(query)
+        return query + "&signature=" + sign
+
+    # ---------- ПУБЛИЧНЫЙ ЗАПРОС ----------
     async def _public_get(self, path: str, params: Optional[Dict] = None):
         url = f"{self.base}{path}"
         if params:
-            query = "&".join([f"{k}={v}" for k, v in params.items()])
-            url += f"?{query}"
-        try:
-            async with self.sess.get(url) as r:
-                js = await r.json()
-                if js.get("code", 0) != 0:
-                    raise RuntimeError(f"BingX error: {js}")
-                return js
-        except Exception as e:
-            log.error(f"Error in _public_get: {e}")
-            raise
+            url += "?" + "&".join(f"{k}={v}" for k, v in params.items())
+        async with self.sess.get(url) as r:
+            js = await r.json()
+            if js.get("code", 0) != 0:
+                raise RuntimeError(f"BingX public error: {js}")
+            return js
 
-    # ---------- ПОДПИСАННЫЙ ЗАПРОС ----------
+    # ---------- ПРИВАТНЫЙ ЗАПРОС ----------
     async def _signed_request(self, method: str, path: str, payload: Optional[Dict] = None):
-        ts = str(int(time.time() * 1000))
-        payload = payload or {}
-        payload["timestamp"] = ts
-        query = "&".join([f"{k}={v}" for k, v in payload.items()])
-        signature = self._sign(query)
-        url = f"{self.base}{path}?{query}&signature={signature}"
+        query = self._sign_query(payload or {})
+        url = f"{self.base}{path}?{query}"
         headers = {"X-BX-APIKEY": self.key}
-        try:
-            async with self.sess.request(method, url, headers=headers) as r:
-                js = await r.json()
-                if js.get("code", 0) != 0:
-                    raise RuntimeError(f"BingX error: {js}")
-                return js
-        except Exception as e:
-            log.error(f"Error in _signed_request: {e}")
-            raise
+        async with self.sess.request(method, url, headers=headers) as r:
+            js = await r.json()
+            if js.get("code", 0) != 0:
+                raise RuntimeError(f"BingX signed error: {js}")
+            return js
 
     # ---------- ПУБЛИЧНЫЕ МЕТОДЫ ----------
-    async def get_all_contracts(self) -> dict:
-        """Получить все фьючерсные контракты (публичный эндпоинт)"""
-        return await self._public_get("/openApi/swap/v2/market/contracts")
-
     async def klines(self, symbol: str, interval: str = "1m", limit: int = 150):
         try:
-            data = await self._public_get("/openApi/swap/v2/quote/klines",
-                                          {"symbol": symbol,
-                                           "interval": interval,
-                                           "limit": limit})
+            data = await self._public_get("/openApi/swap/v3/quote/klines",
+                                          {"symbol": symbol, "interval": interval, "limit": limit})
             return data["data"]
         except Exception as e:
             log.warning("❌ %s klines fail: %s", symbol, e)
@@ -93,7 +72,7 @@ class BingXAsync:
 
     async def order_book(self, symbol: str, limit: int = 5):
         try:
-            data = await self._public_get("/openApi/swap/v2/quote/depth",
+            data = await self._public_get("/openApi/swap/v3/quote/depth",
                                           {"symbol": symbol, "limit": limit})
             return data["data"]
         except Exception as e:
@@ -101,15 +80,27 @@ class BingXAsync:
             return {"bids": [], "asks": []}
 
     # ---------- ПРИВАТНЫЕ МЕТОДЫ ----------
-async def balance(self):
-    query = self._sign_query({})
-    url   = f"{self.base}/openApi/swap/v3/user/balance?{query}"
-    headers = {"X-BX-APIKEY": self.key}
-    async with self.sess.get(url, headers=headers) as r:
-        js = await r.json()
-        if js.get("code") != 0:
-            raise RuntimeError(f"BingX balance error: {js}")
-        return js
+    async def balance(self):
+        js = await self._signed_request("GET", "/openApi/swap/v3/user/balance")
+        data = js.get("data", [])
+
+        # универсальный парсер: список / dict / строка
+        if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
+            equity_str = str(data[0].get("equity", "0"))
+        elif isinstance(data, dict):
+            equity_str = str(data.get("equity", "0"))
+        else:
+            equity_str = str(data)
+
+        try:
+            return float(equity_str)
+        except ValueError:
+            log.error("Cannot parse equity: %s", equity_str)
+            return 0.0
+
+    async def set_leverage(self, symbol: str, leverage: int, side: str) -> dict:
+        return await self._signed_request("POST", "/openApi/swap/v3/trade/leverage",
+                                          {"symbol": symbol, "leverage": leverage, "side": side})
 
     async def place_order(self, symbol: str, side: str, order_type: str,
                           quantity: float, price: Optional[float] = None, post_only: bool = True):
@@ -123,7 +114,7 @@ async def balance(self):
         }
         if price is not None:
             payload["price"] = f"{price:.8f}"
-        return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
+        return await self._signed_request("POST", "/openApi/swap/v3/trade/order", payload)
 
     async def place_stop_order(self, symbol: str, side: str, qty: float,
                                stop_px: float, order_type: str = "STOP_MARKET") -> dict:
@@ -136,7 +127,7 @@ async def balance(self):
             "positionSide": "BOTH",
             "timeInForce": "GTC",
         }
-        return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
+        return await self._signed_request("POST", "/openApi/swap/v3/trade/order", payload)
 
     async def amend_stop_order(self, symbol: str, order_id: str, stop_px: float) -> dict:
         payload = {
@@ -144,20 +135,20 @@ async def balance(self):
             "orderId": order_id,
             "stopPrice": f"{stop_px:.8f}",
         }
-        return await self._signed_request("PUT", "/openApi/swap/v2/trade/order", payload)
+        return await self._signed_request("PUT", "/openApi/swap/v3/trade/order", payload)
 
     async def close_position(self, symbol: str, side: str, quantity: float):
         return await self.place_order(symbol, side, "MARKET", quantity, post_only=False)
 
     async def fetch_positions(self):
-        return await self._signed_request("GET", "/openApi/swap/v2/user/positions")
+        return await self._signed_request("GET", "/openApi/swap/v3/user/positions")
 
     async def cancel_all(self, symbol: str):
-        await self._signed_request("DELETE", "/openApi/swap/v2/trade/allOpenOrders", {"symbol": symbol})
+        await self._signed_request("DELETE", "/openApi/swap/v3/trade/allOpenOrders", {"symbol": symbol})
 
     async def fetch_order(self, symbol: str, order_id: str):
-        response = await self._signed_request("GET", "/openApi/swap/v2/trade/order", {
+        resp = await self._signed_request("GET", "/openApi/swap/v3/trade/order", {
             "symbol": symbol,
             "orderId": order_id
         })
-        return response.get("data", {})
+        return resp.get("data", {})
