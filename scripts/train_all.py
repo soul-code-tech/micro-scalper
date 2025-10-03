@@ -29,10 +29,11 @@ async def train_one(sym: str, tf: str):
         y.append(target)
     X, y = np.array(X), np.array(y)
     if len(np.unique(y)) < 2:
-        print(f"⏭️  {sym} {tf} single class – skip")
-        return
-    clf = LogisticRegression(max_iter=1000)
-    clf.fit(X, y)
+        print(f"⏭️  {sym} {tf} single class – using DummyClassifier")
+        from sklearn.dummy import DummyClassifier
+        clf = DummyClassifier(strategy="most_frequent")
+    else:
+        clf = LogisticRegression(max_iter=1000)
     os.makedirs("weights", exist_ok=True)
     with open(f"weights/{sym.replace('-', '')}_{tf}.pkl", "wb") as f:
         pickle.dump({"clf": clf, "thr": 0.55}, f)
