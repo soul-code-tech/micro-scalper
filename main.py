@@ -241,7 +241,11 @@ async def download_weights_once():
                 print(f"✅ Скачан {local}")
             except Exception as e:
                 print(f"⚠️  Нет весов {local}, используем дефолт")
-
+                
+async def main():
+    asyncio.create_task(start_health())
+    async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
+        await trade_loop(ex)
 
 if __name__ == "__main__":
     try:
