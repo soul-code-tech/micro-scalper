@@ -33,6 +33,13 @@ class BingXAsync:
             if js.get("code", 0) != 0:
                 raise RuntimeError(f"BingX error: {js}")
             return js
+    async def get_contract_info(self, symbol: str) -> dict:
+        path = "/openApi/swap/v2/public/contractInfo"
+        return await self._request("GET", path, {"symbol": symbol})
+
+    async def set_leverage(self, symbol: str, leverage: int) -> dict:
+        path = "/openApi/swap/v2/trade/leverage"
+        return await self._request("POST", path, {"symbol": symbol, "leverage": leverage})
 
     async def klines(self, symbol: str, interval: str = "1m", limit: int = 150):
         path = "/openApi/swap/v2/quote/klines"
