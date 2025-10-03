@@ -6,7 +6,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.dummy import DummyClassifier
 from sklearn.metrics import accuracy_score
-import joblib, os
+import joblib
 
 N_LAG = 5
 MODEL_DIR = "weights"
@@ -62,20 +62,44 @@ def micro_structure(df: pd.DataFrame) -> pd.Series:
         feats.append(ind[col].diff().iloc[-1])
     return pd.Series(feats)
 
-def load_model():
-    return None          # тест без ML
+def micro_score(klines: list, sym: str, tf: str) -> dict:
+    df = pd.DataFrame(klines, columns=["t","o","h","l","c","v"]).astype(float)
+    scaler, clf, thr = load_model(sym, tf)
+    feat = micro_structure(df)
+    atr_pc = float((df["h"].iloc[-1] - df["l"].iloc[-1]) / df["c"].iloc[-1])
 
-def micro_score(klines: list) -> dict:
-    model = load_model()
-    fv = feat_vector(klines)
-    atr_pc, rsi_val, ema_dev, vol_ratio = fv
+    if scaler is None or clf is None:          # ещё не обучили
+        long_raw  = 1.0 if (rsi(df["c"],14) < 70 and feat.iloc[-1] > 0) else 0.0
+        short_raw = 1.0 if (rsi(df["c"],14) > 30 and feat.iloc[-1] < 0) else 0.0
+        return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
 
-    long_raw = 0.0
-    if 40 < rsi_val < 70 and ema_dev > 0 and vol_ratio > 0.6 and atr_pc >= 0.0001:
-        long_raw = min(1.0, vol_ratio / 3)
-
-    short_raw = 0.0
-    if 30 < rsi_val < 60 and ema_dev < 0 and vol_ratio > 0.6 and atr_pc >= 0.0001:
-        short_raw = min(1.0, vol_ratio / 3)
-
+    X = scaler.transform(feat.values.reshape(1, -1))
+    prob = clf.predict_proba(X)[0, 1]
+    long_raw  = float(prob > thr)
+    short_raw = float(prob < 1 - thr)
     return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
+
+async def train_one(sym: str, tf: str, bars: int = 3000):
+    from exchange import BingXAsync
+    async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
+        klines = await ex.klines(sym, tf, bars)
+    df = pd.DataFrame(klines, columns=["t","o","h","l","c","v"]).astype(float)
+
+    X, y = [], []
+    for i in range(N_LAG+1, len(df)-1):
+        feat = micro_structure(df.iloc[i-N_LAG-1:i])
+        target = 1 if df.iloc[i+1]["c"] > df.iloc[i]["c"] else 0
+        X.append(feat.values)
+        y.append(target)
+    X, y = np.array(X), np.array(y)
+
+    if len(np.unique(y)) < 2:
+        clf = DummyClassifier(strategy="stratified")
+    else:
+        clf = LogisticRegression(max_iter=1000, class_weight="balanced")
+    scaler = StandardScaler()
+    Xs = scaler.fit_transform(X)
+    clf.fit(Xs, y)
+    thr = max(0.52, clf.predict_proba(Xs)[:, 1].mean())
+    save_model(sym, tf, scaler, clf, thr)
+    print(f"✅ {sym} {tf}  acc={accuracy_score(y, clf.predict(Xs)):.2f}  thr={thr:.3f}")
