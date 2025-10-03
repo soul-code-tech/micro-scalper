@@ -6,7 +6,7 @@ Quantum-Scalper 1-15m auto-TF
 - Kelly 0.25×
 - max-drawdown-stop 5 %
 - trailing-stop 0.8×ATR
-- quick TP1 60 % at 1.2×ATR  ← исправлено
+- quick TP1 60 % at 1.2×ATR
 - trail40 remaining at 0.8×ATR
 - breakeven + partial 1R
 - auto timeframe 1m-15m
@@ -54,6 +54,7 @@ def human_float(n: float) -> str:
     return f"{n:.5f}".rstrip("0").rstrip(".") if n > 0.01 else f"{n:.7f}"
 
 
+# ---------- управление позицией ----------
 async def manage(ex: BingXAsync, sym: str, api_pos: dict):
     pos = POS.get(sym)
     if not pos:
@@ -61,7 +62,6 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
     mark = float(api_pos["markPrice"])
     side = pos["side"]
 
-    # === 1. Trailing SL (0.8×ATR) ===
     atr_dist = pos["atr"] * CONFIG.ATR_MULT_SL
     if side == "LONG":
         new_sl = max(pos["sl"], mark - atr_dist)
@@ -78,7 +78,7 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
             except Exception as e:
                 log.warning("❌ amend SL %s: %s", sym, e)
 
-    # === 2. TP1: 60% при 1.2×ATR ===
+    # TP1 60 % at 1.2×ATR
     if not pos.get("tp1_done"):
         risk_dist = abs(pos["entry"] - pos["sl_orig"])
         tp1_px = pos["entry"] + risk_dist * CONFIG.TP1_MULT if side == "LONG" else pos["entry"] - risk_dist * CONFIG.TP1_MULT
@@ -88,32 +88,30 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
             pos["tp1_done"] = True
             log.info("⚡ %s TP1 60%% at %s", sym, human_float(mark))
 
-    # === 3. Trail40: остаток 40% с трейлингом 0.8×ATR ===
+    # trail40
     if pos.get("tp1_done"):
         trail_dist = abs(pos["entry"] - pos["sl_orig"]) * CONFIG.TRAIL_MULT
         if side == "LONG":
             new_sl40 = mark - trail_dist
             if new_sl40 > pos["sl"]:
                 pos["sl"] = new_sl40
-                # обновить ордер (если нужно)
         else:
             new_sl40 = mark + trail_dist
             if new_sl40 < pos["sl"]:
                 pos["sl"] = new_sl40
 
-    # === 4. Breakeven после 1R ===
+    # breakeven
     if not pos.get("breakeven_done"):
         risk_dist = abs(pos["entry"] - pos["sl_orig"])
         be_px = pos["entry"] + risk_dist if side == "LONG" else pos["entry"] - risk_dist
         if (side == "LONG" and mark >= be_px) or (side == "SHORT" and mark <= be_px):
-            # Закрыть часть (например, 20%)
             part_qty = pos["qty"] * 0.2
             await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", part_qty)
             pos["breakeven_done"] = True
-            pos["sl"] = pos["entry"]  # breakeven
+            pos["sl"] = pos["entry"]
             log.info("🛡️ %s breakeven @ %s", sym, human_float(pos["entry"]))
 
-    # === 5. Стоп-аут по SL ===
+    # stop-out
     if (side == "LONG" and mark <= pos["sl"]) or (side == "SHORT" and mark >= pos["sl"]):
         await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["qty"])
         POS.pop(sym, None)
@@ -121,6 +119,7 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
         await ex.cancel_all(sym)
         log.info("🛑 %s stopped at %s", sym, human_float(mark))
         return
+
 
 async def guard(px: float, side: str, book: dict, sym: str) -> bool:
     bid, ask = float(book["bids"][0][0]), float(book["asks"][0][0])
@@ -152,7 +151,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("⏭️  %s – пустой стакан", sym)
             return
 
-        score = micro_score(klines, sym, tf)          # правильная сигнатура
+        score = micro_score(klines, sym, tf)
         atr_pc = score["atr_pc"]
         px = float(book["asks"][0][0]) if score["long"] > score["short"] else float(book["bids"][0][0])
         vol_usd = float(klines[-1][5]) * px
@@ -191,13 +190,11 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("⏭️  %s sizing zero", sym)
             return
 
-        # ← проверяем глубину ПОСЛЕ расчёта sizing
         min_depth = 2 * sizing.size
         if float(book["asks"][0][1]) < min_depth or float(book["bids"][0][1]) < min_depth:
             log.info("⏭️  %s – мелкий стакан", sym)
             return
 
-        # остальная логика входа (leverage, place_order, SL/TP) без изменений
         if sym not in POS and sym not in OPEN_ORDERS:
             try:
                 await ex.set_leverage(sym, 50)
@@ -217,11 +214,43 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
             return
 
+        bingx_side = "BUY" if side == "LONG" else "SELL"
+        order = await ex.place_order(sym, bingx_side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
+        if order and order.get("code") == 0:
+            oid = order["data"]["orderId"]
+            POS[sym] = dict(
+                side=side,
+                qty=sizing.size,
+                entry=px,
+                sl=sizing.sl_px,
+                sl_orig=sizing.sl_px,
+                tp=sizing.tp_px,
+                part=sizing.partial_qty,
+                oid=oid,
+                atr=atr_pc * px,
+                breakeven_done=False,
+            )
+            log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
+                     sym, side, sizing.size, human_float(px),
+                     human_float(sizing.sl_px), human_float(sizing.tp_px))
+            sl_side = "SELL" if side == "LONG" else "BUY"
+            tp_side = "SELL" if side == "LONG" else "BUY"
+
+            try:
+                sl_order = await ex.place_stop_order(sym, sl_side, sizing.size, sizing.sl_px, "STOP_MARKET")
+                tp_order = await ex.place_stop_order(sym, tp_side, sizing.size, sizing.tp_px, "TAKE_PROFIT_MARKET")
+                POS[sym]["sl_order_id"] = sl_order["data"]["orderId"]
+                POS[sym]["tp_order_id"] = tp_order["data"]["orderId"]
+                log.info("🔒 %s SL=%s TP=%s (ордера на бирже)", sym, human_float(sizing.sl_px), human_float(sizing.tp_px))
+            except Exception as e:
+                log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
+
     except Exception as e:
         log.warning("❌ %s data fail: %s", sym, e)
         return
 
-# ========== ниже – УРОВЕНЬ МОДУЛЯ ==========
+
+# ---------- УРОВЕНЬ МОДУЛЯ ----------
 async def download_weights_once():
     repo = os.getenv("GITHUB_REPOSITORY", "your-login/your-repo")
     for sym in CONFIG.SYMBOLS:
@@ -241,18 +270,14 @@ async def download_weights_once():
                 print(f"✅ Скачан {local}")
             except Exception as e:
                 print(f"⚠️  Нет весов {local}, используем дефолт")
-                
+
+
 async def trade_loop(ex: BingXAsync):
     global PEAK_BALANCE
     await download_weights_once()
     while True:
         try:
-            raw_bal = await ex.balance()
-            data = raw_bal["data"]
-            if isinstance(data, dict) and "balance" in data:
-                equity = float(data["balance"]["equity"])
-            else:
-                equity = float(data)
+            equity = await ex.balance()
         except Exception as e:
             log.error("Balance fetch: %s\n%s", e, traceback.format_exc())
             await asyncio.sleep(5)
@@ -285,11 +310,14 @@ async def trade_loop(ex: BingXAsync):
                 continue
             await think(ex, sym, equity)
 
-        await asyncio.sleep(2)                
+        await asyncio.sleep(2)
+
+
 async def main():
     asyncio.create_task(start_health())
     async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
         await trade_loop(ex)
+
 
 if __name__ == "__main__":
     try:
@@ -299,4 +327,3 @@ if __name__ == "__main__":
         print("CRASH in main():", e, file=sys.stderr)
         traceback.print_exc()
         sys.exit(1)
-   
