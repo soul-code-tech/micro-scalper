@@ -81,6 +81,7 @@ class BingXAsync:
 
     # ---------- ПРИВАТНЫЕ МЕТОДЫ ----------
     
+# Обязательно внутри класса BingXAsync
 async def balance(self):
     raw = await self._signed_request("GET", "/openApi/swap/v3/user/balance")
     data = raw.get("data", [])
@@ -88,20 +89,18 @@ async def balance(self):
     if not data:
         raise RuntimeError("Empty balance data")
 
-    # Ищем USDT (или первый актив с ненулевым equity)
-    usdt_entry = None
+    # Ищем USDT
     for entry in data:
         if entry.get("asset") == "USDT":
-            usdt_entry = entry
-            break
-    if not usdt_entry:
-        usdt_entry = data[0]
-
-    equity_str = usdt_entry.get("equity", "0")
-    try:
-        return float(equity_str)
-    except ValueError as e:
-        raise RuntimeError(f"Cannot parse equity '{equity_str}': {e}")
+            equity_str = entry.get("equity", "0")
+            try:
+                return float(equity_str)
+            except ValueError as e:
+                raise RuntimeError(f"Cannot parse equity '{equity_str}': {e}")
+    
+    # Если USDT не найден — берём первый актив
+    equity_str = data[0].get("equity", "0")
+    return float(equity_str)
 
     async def set_leverage(self, symbol: str, leverage: int, side: str) -> dict:
         return await self._signed_request("POST", "/openApi/swap/v2/trade/leverage",
