@@ -92,7 +92,14 @@ class BingXAsync:
 
     # ---------- ПРИВАТНЫЕ МЕТОДЫ ----------
     async def balance(self):
-        return await self._signed_request("GET", "/openApi/swap/v3/user/balance")
+        raw = await self._signed_request("GET", "/openApi/swap/v3/user/balance")
+        # теперь всегда массив счетов
+        arr = raw.get("data", [])
+        if not arr:
+            raise RuntimeError("balance empty")
+        # первый элемент – основной фьючерсный счёт
+        equity_str = arr[0].get("balance", {}).get("equity", "0")
+        return float(equity_str)
 
     async def set_leverage(self, symbol: str, leverage: int, side: str) -> dict:
         """Установить плечо (требуется side: 'LONG' или 'SHORT')"""
