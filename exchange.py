@@ -93,23 +93,27 @@ class BingXAsync:
     # ---------- ПРИВАТНЫЕ МЕТОДЫ ----------
     async def balance(self):
         raw = await self._signed_request("GET", "/openApi/swap/v3/user/balance")
-        data = raw.get("data", [])
+        log.info("=== RAW BALANCE === %s", raw)          # ← отладка
 
-        # 1. если пришёл список объектов – берём 1-й
-        if isinstance(data, list) and len(data) > 0:
+        data = raw.get("data", [])
+        log.info("=== DATA TYPE === %s | VALUE === %s", type(data), data)
+
+        # если пришёл список – берём 1-й элемент, если он dict
+        if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
             equity_str = str(data[0].get("balance", {}).get("equity", "0"))
-        # 2. если пришёл dict – берём сразу
+        # если сразу dict – берём из него
         elif isinstance(data, dict):
             equity_str = str(data.get("balance", {}).get("equity", "0"))
-        # 3. если строка / число – используем как есть
+        # иначе – используем как строку
         else:
             equity_str = str(data)
 
+        log.info("=== EQUITY STR === %s", equity_str)
         try:
             return float(equity_str)
         except ValueError:
-            raise RuntimeError(f"Cannot parse equity: {equity_str}")
-
+            log.error("=== CANNOT PARSE === %s", equity_str)
+            return 0.0
     async def set_leverage(self, symbol: str, leverage: int, side: str) -> dict:
         """Установить плечо (требуется side: 'LONG' или 'SHORT')"""
         return await self._signed_request("POST", "/openApi/swap/v3/trade/leverage", {
