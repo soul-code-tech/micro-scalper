@@ -92,7 +92,7 @@ class BingXAsync:
 
     # ---------- ПРИВАТНЫЕ МЕТОДЫ ----------
     async def balance(self):
-        raw = await self._signed_request("GET", "/openApi/swap/v3/user/balance")
+        raw = await self._signed_request("GET", "/openApi/swap/v2/user/balance")
         log.info("=== RAW BALANCE === %s", raw)          # ← отладка
 
         data = raw.get("data", [])
