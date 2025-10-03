@@ -2,13 +2,13 @@
 """
 Переобучение лог-рег на последних 3000 баров для всех тайм-фреймов
 """
+import asyncio
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sklearn.linear_model import LogisticRegression
 import numpy as np
 import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-import asyncio
 
 from exchange import BingXAsync
 from strategy import feat_vector
