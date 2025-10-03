@@ -27,20 +27,35 @@ def feat_vector(klines: list) -> pd.Series:
     vol_ratio = v.iloc[-1] / (vol_sma + 1e-8)
     return pd.Series([atr_pc, rsi_val, (c.iloc[-1] - ema9) / ema9, vol_ratio])
 
-def load_model():
-    return None          # тест без ML
+def load_model(sym_tf: str = "DOGEUSDT_5m"):
+    """Загружает модель по имени символа и ТФ"""
+    path = f"weights/{sym_tf}.pkl"
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            return pickle.load(f)
+    return None
 
-def micro_score(klines: list) -> dict:
-    model = load_model()
+def micro_score(klines: list, sym_tf: str = None) -> dict:
+    model_data = load_model(sym_tf) if sym_tf else None
     fv = feat_vector(klines)
     atr_pc, rsi_val, ema_dev, vol_ratio = fv
 
-    long_raw = 0.0
-    if 40 < rsi_val < 70 and ema_dev > 0 and vol_ratio > 0.6 and atr_pc >= 0.0001:
-        long_raw = min(1.0, vol_ratio / 3)
+    long_raw = short_raw = 0.0
 
-    short_raw = 0.0
-    if 30 < rsi_val < 60 and ema_dev < 0 and vol_ratio > 0.6 and atr_pc >= 0.0001:
-        short_raw = min(1.0, vol_ratio / 3)
+    if model_data:
+        # Используем ML-модель
+        clf = model_data["clf"]
+        thr = model_data.get("thr", 0.55)
+        proba = clf.predict_proba([fv])[0][1]  # вероятность роста
+        if proba > thr:
+            long_raw = min(1.0, (proba - thr) * 3)
+        elif proba < (1 - thr):
+            short_raw = min(1.0, ((1 - proba) - thr) * 3)
+    else:
+        # Fallback на правила
+        if 40 < rsi_val < 70 and ema_dev > 0 and vol_ratio > 0.6 and atr_pc >= 0.0001:
+            long_raw = min(1.0, vol_ratio / 3)
+        if 30 < rsi_val < 60 and ema_dev < 0 and vol_ratio > 0.6 and atr_pc >= 0.0001:
+            short_raw = min(1.0, vol_ratio / 3)
 
     return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
