@@ -122,16 +122,6 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
         log.info("🛑 %s stopped at %s", sym, human_float(mark))
         return
 
-    risk_dist = abs(pos["entry"] - pos["sl_orig"])
-    tp_1r = pos["entry"] + risk_dist if side == "LONG" else pos["entry"] - risk_dist
-    if (side == "LONG" and mark >= tp_1r) or (side == "SHORT" and mark <= tp_1r):
-        if not pos.get("breakeven_done"):
-            await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["part"])
-            log.info("💰 %s part %.3f at %s", sym, pos["part"], human_float(mark))
-            pos["sl"] = pos["entry"]
-            pos["breakeven_done"] = True
-
-
 async def guard(px: float, side: str, book: dict, sym: str) -> bool:
     bid, ask = float(book["bids"][0][0]), float(book["asks"][0][0])
     spread = (ask - bid) / bid
@@ -154,16 +144,18 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.warning("❌ не смог проверить ордер %s: %s", sym, e)
             return
 
-    tf = await best_timeframe(ex, sym)
-    klines = await ex.klines(sym, tf, 150)
-    score = micro_score(klines, f"{sym.replace('-', '')}_{tf}")  # ← передаём имя модели
+    try:
+        tf = await best_timeframe(ex, sym)
+        klines = await ex.klines(sym, tf, 150)
+        book = await ex.order_book(sym, 5)  # ← добавлено!
     except Exception as e:
         log.warning("❌ %s data fail: %s", sym, e)
         return
 
-    score = micro_score(klines)
+    score = micro_score(klines, f"{sym.replace('-', '')}_{tf}")
     atr_pc = score["atr_pc"]
     px = float(book["asks"][0][0]) if score["long"] > score["short"] else float(book["bids"][0][0])
+    # ... остальное без изменений
     vol_usd = float(klines[-1][5]) * px
     side = ("LONG" if score["long"] > score["short"] else
             "SHORT" if score["short"] > score["long"] else None)
