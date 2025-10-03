@@ -4,13 +4,17 @@ import time
 import hashlib
 import aiohttp
 from typing import Optional, Dict, Any
+import logging
 
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 
 class BingXAsync:
     def __init__(self, api_key: str, secret: str):
         self.key = api_key
         self.sec = secret
-        self.base = "https://open-api.bingx.com"  # ← убран лишний пробел!
+        self.base = "https://open-api.bingx.com"  # Удалены лишние пробелы
         self.sess: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
@@ -30,11 +34,15 @@ class BingXAsync:
         if params:
             query = "&".join([f"{k}={v}" for k, v in params.items()])
             url += f"?{query}"
-        async with self.sess.get(url) as r:
-            js = await r.json()
-            if js.get("code", 0) != 0:
-                raise RuntimeError(f"BingX error: {js}")
-            return js
+        try:
+            async with self.sess.get(url) as r:
+                js = await r.json()
+                if js.get("code", 0) != 0:
+                    raise RuntimeError(f"BingX error: {js}")
+                return js
+        except Exception as e:
+            log.error(f"Error in _public_get: {e}")
+            raise
 
     # ---------- ПОДПИСАННЫЙ ЗАПРОС ----------
     async def _signed_request(self, method: str, path: str, payload: Optional[Dict] = None):
@@ -45,11 +53,15 @@ class BingXAsync:
         signature = self._sign(query)
         url = f"{self.base}{path}?{query}&signature={signature}"
         headers = {"X-BX-APIKEY": self.key}
-        async with self.sess.request(method, url, headers=headers) as r:
-            js = await r.json()
-            if js.get("code", 0) != 0:
-                raise RuntimeError(f"BingX error: {js}")
-            return js
+        try:
+            async with self.sess.request(method, url, headers=headers) as r:
+                js = await r.json()
+                if js.get("code", 0) != 0:
+                    raise RuntimeError(f"BingX error: {js}")
+                return js
+        except Exception as e:
+            log.error(f"Error in _signed_request: {e}")
+            raise
 
     # ---------- ПУБЛИЧНЫЕ МЕТОДЫ ----------
     async def get_all_contracts(self) -> dict:
@@ -128,7 +140,8 @@ class BingXAsync:
         await self._signed_request("DELETE", "/openApi/swap/v2/trade/allOpenOrders", {"symbol": symbol})
 
     async def fetch_order(self, symbol: str, order_id: str):
-        return await self._signed_request("GET", "/openApi/swap/v2/trade/order", {
+        response = await self._signed_request("GET", "/openApi/swap/v2/trade/order", {
             "symbol": symbol,
             "orderId": order_id
         })
+        return response.get("data", {})
