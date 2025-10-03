@@ -63,7 +63,7 @@ class BingXAsync:
     # ---------- ПУБЛИЧНЫЕ МЕТОДЫ ----------
     async def klines(self, symbol: str, interval: str = "1m", limit: int = 150):
         try:
-            data = await self._public_get("/openApi/swap/v3/quote/klines",
+            data = await self._public_get("/openApi/swap/v2/quote/klines",
                                           {"symbol": symbol, "interval": interval, "limit": limit})
             return data["data"]
         except Exception as e:
@@ -72,7 +72,7 @@ class BingXAsync:
 
     async def order_book(self, symbol: str, limit: int = 5):
         try:
-            data = await self._public_get("/openApi/swap/v3/quote/depth",
+            data = await self._public_get("/openApi/swap/v2/quote/depth",
                                           {"symbol": symbol, "limit": limit})
             return data["data"]
         except Exception as e:
