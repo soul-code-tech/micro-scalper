@@ -38,16 +38,29 @@ def atr(df: pd.DataFrame, period: int = 14) -> float:
     tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
     return float(tr.rolling(period).mean().iloc[-1])
 
-def feat_vector(klines: list) -> pd.Series:
-    df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
+def micro_structure(df: pd.DataFrame) -> pd.Series:
     c, h, l, v = df["c"], df["h"], df["l"], df["v"]
-    atr_pc = atr(df, 14) / c.iloc[-1]
+
     rsi_val = rsi(c, 14)
-    ema9  = c.ewm(span=9).mean().iloc[-1]
-    ema21 = c.ewm(span=21).mean().iloc[-1]
-    vol_sma = v.rolling(20).mean().iloc[-1]
-    vol_ratio = v.iloc[-1] / (vol_sma + 1e-8)
-    return pd.Series([atr_pc, rsi_val, (c.iloc[-1] - ema9) / ema9, vol_ratio])
+    atr_val = atr(df, 14)
+    ema9  = c.ewm(span=9).mean()
+    ema_dev = (c - ema9) / ema9
+    vol_sma = v.rolling(20).mean()
+    vol_ratio = v / (vol_sma + 1e-8)
+
+    ind = pd.DataFrame({
+        "rsi": rsi_val,
+        "atr": atr_val,
+        "ema_dev": ema_dev,
+        "vol_r": vol_ratio,
+    }).iloc[-N_LAG-1:]
+
+    feats = []
+    for col in ind.columns:
+        for lag in range(1, N_LAG+1):
+            feats.append(ind[col].shift(lag).iloc[-1])
+        feats.append(ind[col].diff().iloc[-1])
+    return pd.Series(feats)
 
 def load_model():
     return None          # тест без ML
