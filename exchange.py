@@ -68,11 +68,11 @@ class BingXAsync:
     # ---------- ПУБЛИЧНЫЕ МЕТОДЫ ----------
     async def get_all_contracts(self) -> dict:
         """Получить все фьючерсные контракты (публичный эндпоинт)"""
-        return await self._public_get("/openApi/swap/v3/market/contracts")
+        return await self._public_get("/openApi/swap/v2/market/contracts")
 
     async def klines(self, symbol: str, interval: str = "1m", limit: int = 150):
         try:
-            data = await self._public_get("/openApi/swap/v3/quote/klines",
+            data = await self._public_get("/openApi/swap/v2/quote/klines",
                                           {"symbol": symbol,
                                            "interval": interval,
                                            "limit": limit})
@@ -83,7 +83,7 @@ class BingXAsync:
 
     async def order_book(self, symbol: str, limit: int = 5):
         try:
-            data = await self._public_get("/openApi/swap/v3/quote/depth",
+            data = await self._public_get("/openApi/swap/v2/quote/depth",
                                           {"symbol": symbol, "limit": limit})
             return data["data"]
         except Exception as e:
@@ -116,7 +116,7 @@ class BingXAsync:
             return 0.0
     async def set_leverage(self, symbol: str, leverage: int, side: str) -> dict:
         """Установить плечо (требуется side: 'LONG' или 'SHORT')"""
-        return await self._signed_request("POST", "/openApi/swap/v3/trade/leverage", {
+        return await self._signed_request("POST", "/openApi/swap/v2/trade/leverage", {
             "symbol": symbol,
             "leverage": leverage,
             "side": side
@@ -134,7 +134,7 @@ class BingXAsync:
         }
         if price is not None:
             payload["price"] = f"{price:.8f}"
-        return await self._signed_request("POST", "/openApi/swap/v3/trade/order", payload)
+        return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
 
     async def place_stop_order(self, symbol: str, side: str, qty: float,
                                stop_px: float, order_type: str = "STOP_MARKET") -> dict:
@@ -147,7 +147,7 @@ class BingXAsync:
             "positionSide": "BOTH",
             "timeInForce": "GTC",
         }
-        return await self._signed_request("POST", "/openApi/swap/v3/trade/order", payload)
+        return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
 
     async def amend_stop_order(self, symbol: str, order_id: str, stop_px: float) -> dict:
         payload = {
@@ -155,19 +155,19 @@ class BingXAsync:
             "orderId": order_id,
             "stopPrice": f"{stop_px:.8f}",
         }
-        return await self._signed_request("PUT", "/openApi/swap/v3/trade/order", payload)
+        return await self._signed_request("PUT", "/openApi/swap/v2/trade/order", payload)
 
     async def close_position(self, symbol: str, side: str, quantity: float):
         return await self.place_order(symbol, side, "MARKET", quantity, post_only=False)
 
     async def fetch_positions(self):
-        return await self._signed_request("GET", "/openApi/swap/v3/user/positions")
+        return await self._signed_request("GET", "/openApi/swap/v2/user/positions")
 
     async def cancel_all(self, symbol: str):
-        await self._signed_request("DELETE", "/openApi/swap/v3/trade/allOpenOrders", {"symbol": symbol})
+        await self._signed_request("DELETE", "/openApi/swap/v2/trade/allOpenOrders", {"symbol": symbol})
 
     async def fetch_order(self, symbol: str, order_id: str):
-        response = await self._signed_request("GET", "/openApi/swap/v3/trade/order", {
+        response = await self._signed_request("GET", "/openApi/swap/v2/trade/order", {
             "symbol": symbol,
             "orderId": order_id
         })
