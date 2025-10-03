@@ -70,24 +70,25 @@ class BingXAsync:
         """Получить все фьючерсные контракты (публичный эндпоинт)"""
         return await self._public_get("/openApi/cswap/v1/market/contracts")
 
-    async def klines(self, symbol: str, interval: str = "1m", limit: int = 100):
+    async def klines(self, symbol: str, interval: str = "1m", limit: int = 150):
         try:
-            data = await self._public_get("/openApi/swap/v2/market/klines", {
-                "symbol": symbol,
-                "interval": interval,
-                "limit": limit
-            })
+            data = await self._public_get("/openApi/swap/v3/quote/klines",
+                                          {"symbol": symbol,
+                                           "interval": interval,
+                                           "limit": limit})
             return data["data"]
         except Exception as e:
             log.warning("❌ %s klines fail: %s", symbol, e)
             return []
 
     async def order_book(self, symbol: str, limit: int = 5):
-        data = await self._public_get("/openApi/cswap/v1/market/depth", {
-            "symbol": symbol,
-            "limit": limit
-        })
-        return data["data"]
+        try:
+            data = await self._public_get("/openApi/swap/v3/quote/depth",
+                                          {"symbol": symbol, "limit": limit})
+            return data["data"]
+        except Exception as e:
+            log.warning("❌ %s order_book fail: %s", symbol, e)
+            return {"bids": [], "asks": []}
 
     # ---------- ПРИВАТНЫЕ МЕТОДЫ ----------
     async def balance(self):
