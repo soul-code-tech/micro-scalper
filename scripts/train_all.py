@@ -3,6 +3,7 @@
 Переобучение лог-рег на последних 3000 баров для всех тайм-фреймов
 """
 import asyncio
+import pickle
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sklearn.linear_model import LogisticRegression
