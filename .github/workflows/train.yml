@@ -28,6 +28,6 @@ jobs:
         run: python scripts/train_all.py
 
         - env:
-          GITHUB_TOKEN: ${{ secrets.PAT }}   # ← был secrets.GITHUB_TOKEN
+          GITHUB_TOKEN: ${{ secrets.PAT }} 
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: python scripts/upload_weights.py
