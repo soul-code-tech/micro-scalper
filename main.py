@@ -197,7 +197,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     if not await guard(px, side, book, sym):
         return
 
-       sizing = calc(px, atr_pc * px, side, equity, sym)
+    sizing = calc(px, atr_pc * px, side, equity, sym)
     if sizing.size <= 0:
         log.info("⏭️  %s sizing zero", sym)
         return
