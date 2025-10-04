@@ -18,18 +18,7 @@ async def health(request: web.Request) -> web.Response:
     try:
         async with BingXAsync(os.getenv("BINGX_API_KEY"),
                               os.getenv("BINGX_SECRET_KEY")) as ex:
-            equity = await ex.balance()  # это уже float
-            bal = equity
-
-        # ⬅️ теперь ВНУТРИ try
-        if isinstance(data, dict) and "balance" in data:
-            if isinstance(data["balance"], dict):
-                bal = float(data["balance"]["equity"])
-            else:
-                bal = float(data["balance"])
-        else:
-            bal = float(data)
-
+            bal = await ex.balance()          # уже float
     except Exception as e:
         log.error("Health error: %s", e)
         return web.json_response({"status": "error", "msg": str(e)}, status=503)
