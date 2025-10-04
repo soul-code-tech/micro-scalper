@@ -4,8 +4,8 @@ import os
 
 @dataclass(slots=True)
 class ScalperConfig:
-    SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "XRP-USDT")
-    TIME_FRAMES: Tuple[str, ...] = ("5m")
+    SYMBOLS: Tuple[str, ...] = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT")
+    TIME_FRAMES: Tuple[str, ...] = ("1m", "3m", "5m", "15m")
     MAX_POS: int = 3
     RISK_PER_TRADE: float = 0.15
     KELLY_F: float = 0.15
@@ -24,17 +24,35 @@ class ScalperConfig:
     PARTIAL_TP: float = 0.6
 
     TUNE: Dict[str, Dict[str, float]] = field(default_factory=lambda: {
-        "DOGE-USDT": {
-            "MIN_ATR_PC": 0.00030,
-            "MAX_SPREAD": 0.0008,
+        "BTC-USDT": {
+            "MIN_ATR_PC": 0.00012,
+            "MAX_SPREAD": 0.00025,
+            "TRADE_HOURS": (0, 24),
+            "TP1_MULT": 1.3,
+        },
+        "ETH-USDT": {
+            "MIN_ATR_PC": 0.00015,
+            "MAX_SPREAD": 0.00035,
+            "TRADE_HOURS": (0, 24),
+            "TP1_MULT": 1.35,
+        },
+        "SOL-USDT": {
+            "MIN_ATR_PC": 0.00020,
+            "MAX_SPREAD": 0.00050,
             "TRADE_HOURS": (0, 24),
             "TP1_MULT": 1.4,
         },
         "XRP-USDT": {
             "MIN_ATR_PC": 0.00025,
-            "MAX_SPREAD": 0.0006,
+            "MAX_SPREAD": 0.00060,
             "TRADE_HOURS": (0, 24),
             "TP1_MULT": 1.45,
+        },
+        "DOGE-USDT": {
+            "MIN_ATR_PC": 0.00030,
+            "MAX_SPREAD": 0.00080,
+            "TRADE_HOURS": (0, 24),
+            "TP1_MULT": 1.5,
         },
     })
 
