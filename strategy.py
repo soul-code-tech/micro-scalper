@@ -65,35 +65,33 @@ def micro_structure(df: pd.DataFrame) -> pd.Series:
     return pd.Series(feats, dtype=np.float32)
 
 def micro_score(klines: list, sym: str, tf: str) -> dict:
-    # 1. защита от короткого цикла
     if len(klines) < N_LAG + 2:
         return {"long": 0.0, "short": 0.0, "atr_pc": 0.0}
 
-    # 2. готовим DataFrame
     df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
-
-    # 3. ATR-процент для фильтра
     atr_pc = float((df["h"].iloc[-1] - df["l"].iloc[-1]) / df["c"].iloc[-1])
 
-    # 4. загружаем обученную модель (если есть)
     scaler, clf, thr = load_model(sym, tf)
-
-    # 5. строим вектор признаков
     feat = micro_structure(df)
 
-    # 6. если модели нет – простое правило
+    # ---------------- DEBUG -----------------
+    print(f"[DBG] {sym} {tf}  atr_pc={atr_pc:.5f}  thr={thr:.3f}  model={clf is not None}")
+    # --------------------------------------
+
     if scaler is None or clf is None:
-        long_raw  = float(rsi(df["c"],14) < 70)
-        short_raw = float(rsi(df["c"],14) > 30)
+        rsi_now = rsi(df["c"], 14)
+        long_raw  = float(rsi_now < 70)
+        short_raw = float(rsi_now > 30)
+        print(f"[DBG] {sym}  fallback RSI rule  long={long_raw}  short={short_raw}")
         return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
 
-    # 7. предсказание
     X = scaler.transform(feat.values.reshape(1, -1))
-    prob = clf.predict_proba(X)[0, 1]
+    prob = float(clf.predict_proba(X)[0, 1])
 
     long_raw  = float(prob > thr)
     short_raw = float(prob < 1 - thr)
 
+    print(f"[DBG] {sym}  prob={prob:.3f}  long={long_raw}  short={short_raw}")
     return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
 
 async def train_one(sym: str, tf: str, bars: int = 1440):
