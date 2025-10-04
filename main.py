@@ -25,6 +25,7 @@ import logging
 import time
 import traceback
 import aiohttp
+import subprocess
 from datetime import datetime, timezone
 from datetime import datetime as dt
 
@@ -197,6 +198,9 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             return
         if not await guard(px, side, book, sym):
             return
+        if len(klines) < 52:
+            print(f"⏭️  {sym} {tf} only {len(klines)} bars – skip")
+            return   
 
         sizing = calc(px, atr_pc * px, side, equity, sym)
         if sizing.size <= 0:
@@ -259,30 +263,23 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                 log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
 
     except Exception as e:
-        log.warning("❌ %s data fail: %s", sym, e)
+        log.debug("❌ %s data fail: %s", sym, e)
         return
 
 
 # ---------- УРОВЕНЬ МОДУЛЯ ----------
 async def download_weights_once():
     repo = os.getenv("GITHUB_REPOSITORY", "your-login/your-repo")
-    for sym in CONFIG.SYMBOLS:
-        for tf in CONFIG.TIME_FRAMES:
-            fname = f"{sym.replace('-', '')}_{tf}.pkl"
-            local = f"weights/{fname}"
-            if os.path.exists(local):
-                continue
-            url = f"https://raw.githubusercontent.com/{repo}/weights/{fname}"  # ✅ без пробела
-            os.makedirs("weights", exist_ok=True)
-            try:
-                async with aiohttp.ClientSession() as s:
-                    async with s.get(url) as r:
-                        r.raise_for_status()
-                        with open(local, "wb") as f:
-                            f.write(await r.read())
-                print(f"✅ Скачан {local}")
-            except Exception as e:
-                print(f"⚠️  Нет весов {local}, используем дефолт")
+    os.makedirs("weights", exist_ok=True)
+    # стягиваем ветку weights
+    subprocess.run([
+        "git", "clone", "--branch", "weights", "--single-branch",
+        f"https://github.com/{repo}.git", "weights_tmp"
+    ], check=False)
+    # копируем файлы
+    subprocess.run("cp -r weights_tmp/* weights/ 2>/dev/null || true", shell=True)
+    subprocess.run("rm -rf weights_tmp", shell=True)
+    print("✅ Веса подтянуты из ветки weights")
 
 async def trade_loop(ex: BingXAsync):
     global PEAK_BALANCE, CYCLE
@@ -305,7 +302,7 @@ async def trade_loop(ex: BingXAsync):
             # пишем не чаще 1 раза в 30 сек (15 циклов)
             if CYCLE % 15 == 0:
                 dd = (PEAK_BALANCE - equity) / PEAK_BALANCE * 100
-                log.warning("⚠️  DD %.1f %% – skip cycle", dd)
+                log.debug("⚠️  DD %.1f %% – skip cycle", dd)
             await asyncio.sleep(1)
             continue
 
