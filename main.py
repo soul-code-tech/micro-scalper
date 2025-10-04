@@ -176,13 +176,13 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                  sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
 
         utc_hour = datetime.now(timezone.utc).hour
-        if not (CONFIG.TRADE_HOURS[0] <= utc_hour < CONFIG.TRADE_HOURS[1]):
-            log.info("⏭️  %s – вне торгового окна", sym)
-            return
+        #if not (CONFIG.TRADE_HOURS[0] <= utc_hour < CONFIG.TRADE_HOURS[1]):
+        #    log.info("⏭️  %s – вне торгового окна", sym)
+        #    return
 
-        if await is_news_time(5):
-            log.info("⏭️  %s – высокий импакт новостей", sym)
-            return
+        #if await is_news_time(5):
+        #    log.info("⏭️  %s – высокий импакт новостей", sym)
+        #    return
 
         if atr_pc < CONFIG.MIN_ATR_PC:
             log.info("⏭️  %s low atr", sym)
@@ -263,7 +263,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                 log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
 
     except Exception as e:
-        log.debug("❌ %s data fail: %s", sym, e)
+        log.warning("❌ %s data fail: %s", sym, e)
         return
 
 
