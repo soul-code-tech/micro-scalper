@@ -94,7 +94,7 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
 
     return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
 
-async def train_one(sym: str, tf: str, bars: int = 3000):
+async def train_one(sym: str, tf: str, bars: int = 1440):
     from exchange import BingXAsync
     async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
         klines = await ex.klines(sym, tf, bars)
