@@ -8,7 +8,12 @@ SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT"]
 
 async def train_one(sym: str, epochs: int = 4):
     async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
-        klines = await ex.klines(sym, CONFIG.TIMEFRAME, 600)   # 600 бар
+        klines = await ex.klines(sym, CONFIG.TIMEFRAME, 600)
+
+    if len(klines) < 300:                      # ⬅️ ДО обучения
+        print(f"⏭️  {sym} skipped – only {len(klines)} bars")
+        return
+
     model = LSTMEnsemble()
     model.build_models()
     try:
@@ -16,8 +21,8 @@ async def train_one(sym: str, epochs: int = 4):
         os.makedirs("weights", exist_ok=True)
         model.save(f"weights/{sym.replace('-','')}.pkl")
         print(f"✅ {sym} updated")
-    except ValueError as e:
-        print(f"⏭️  {sym} skipped – {e}")
+    except Exception as e:
+        print(f"❌ {sym} train error – {e}")
 
 async def main():
     for s in SYMBOLS:
