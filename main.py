@@ -310,6 +310,7 @@ async def trade_loop(ex: BingXAsync):
             await think(ex, sym, equity)
 
         await asyncio.sleep(2)
+        await asyncio.sleep(0)
 
 
 async def main():
