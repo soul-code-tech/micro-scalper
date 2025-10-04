@@ -160,6 +160,11 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     try:
         tf = await best_timeframe(ex, sym)
         klines = await ex.klines(sym, tf, 150)
+        # ---------- 1. RAW-дамп баров ----------
+        if not klines or len(klines) < 10:
+            log.info("⏭️ %s %s – мало баров (%s)", sym, tf, len(klines))
+            return
+        log.debug("RAW %s %s  last: %s", sym, tf, klines[-1])
         book = await ex.order_book(sym, 5)
         if not book.get("bids") or not book.get("asks"):
             log.info("⏭️  %s – пустой стакан", sym)
