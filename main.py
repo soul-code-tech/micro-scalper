@@ -45,7 +45,7 @@ COL = {
 logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
 class ColouredFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        t = dt.utcfromtimestamp(record.created).strftime("%H:%M")
+        t = dt.fromtimestamp(record.created, tz=timezone.utc).strftime("%H:%M")
         lvl_col = {"INFO": COL["GRN"], "WARNING": COL["YEL"],
                    "ERROR": COL["RED"]}.get(record.levelname, "")
         msg = record.getMessage()
