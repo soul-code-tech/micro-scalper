@@ -18,7 +18,8 @@ def load_model(sym: str, tf: str):
     p = model_path(sym, tf)
     if not os.path.exists(p):
         return None, None, 0.55
-    obj = joblib.load(p)
+    with open(p, "rb") as f:
+        obj = pickle.load(f)
     return obj["scaler"], obj["clf"], obj["thr"]
 
 def save_model(sym, tf, scaler, clf, thr):
