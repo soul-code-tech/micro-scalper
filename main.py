@@ -274,7 +274,7 @@ async def download_weights_once():
     # стягиваем ветку weights
     subprocess.run([
         "git", "clone", "--branch", "weights", "--single-branch",
-        f"https://github.com/{repo}.git", "weights_tmp"
+        f"https://github.com/{repo}.git","weights_tmp"
     ], check=False)
     # копируем файлы
     subprocess.run("cp -r weights_tmp/* weights/ 2>/dev/null || true", shell=True)
@@ -306,8 +306,10 @@ async def trade_loop(ex: BingXAsync):
             await asyncio.sleep(1)
             continue
 
-        cache.set("balance", equity)
-        log.info("💰 Equity %.2f $ (peak %.2f $)", equity, PEAK_BALANCE)
+        prev_eq = cache.get("prev_eq", 0.0)
+        if abs(equity - prev_eq) > 0.01:
+            log.info("💰 Equity %.2f $ (peak %.2f $)", equity, PEAK_BALANCE)
+            cache.set("prev_eq", equity)
 
         # ---------- сводка каждые 15 циклов (~30 сек) ----------
         if CYCLE % 15 == 0:
