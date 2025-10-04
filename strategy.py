@@ -71,7 +71,9 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
     df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
 
     # 3. ATR(14) в процентах от цены закрытия
-    atr_pc = float(atr(df, 14) / (df["c"].iloc[-1] + 1e-8))
+    atr14 = atr(df, 14)
+    atr_pc = float(atr14 / (df["c"].iloc[-1] + 1e-8))
+    print(f"[DBG] {sym} {tf}  atr14={atr14:.8f}  close={df['c'].iloc[-1]:.5f}  atr_pc={atr_pc:.5f}")
     if not np.isfinite(atr_pc):
         atr_pc = 0.0
 
