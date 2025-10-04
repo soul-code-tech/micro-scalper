@@ -252,6 +252,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
 
         bingx_side = "BUY" if side == "LONG" else "SELL"
         order = await ex.place_order(sym, bingx_side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
+        log.info("PLACE-RESP %s %s", sym, order)
         if order and order.get("code") == 0:
             oid = order["data"]["orderId"]
             POS[sym] = dict(
