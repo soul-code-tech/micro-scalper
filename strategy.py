@@ -83,8 +83,8 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
 
     # 6. если модели нет – простое правило
     if scaler is None or clf is None:
-        long_raw  = float(rsi(df["c"], 14) < 70 and feat.iloc[-1] > 0)
-        short_raw = float(rsi(df["c"], 14) > 30 and feat.iloc[-1] < 0)
+    long_raw  = float(rsi(df["c"],14) < 70)
+    short_raw = float(rsi(df["c"],14) > 30)
         return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
 
     # 7. предсказание
