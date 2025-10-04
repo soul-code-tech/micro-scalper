@@ -12,7 +12,7 @@ N_LAG = 5
 MODEL_DIR = "weights"
 
 def model_path(sym: str, tf: str) -> str:
-    return f"{MODEL_DIR}/{sym.replace('-','')}_{tf}.joblib"
+    return f"{MODEL_DIR}/{sym.replace('-','')}_{tf}.pkl"
 
 def load_model(sym: str, tf: str):
     p = model_path(sym, tf)
