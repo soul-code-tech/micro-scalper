@@ -160,15 +160,19 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     try:
         tf = await best_timeframe(ex, sym)
         klines = await ex.klines(sym, tf, 150)
-        # ---------- 1. RAW-дамп баров ----------
-        if not klines or len(klines) < 10:
-            log.info("⏭️ %s %s – мало баров (%s)", sym, tf, len(klines))
+
+        # ---------- СУПЕР-ДАМП ----------
+        if not klines:
+            log.info("⏭️ %s %s – klines ПУСТО", sym, tf)
             return
-        log.debug("RAW %s %s  last: %s", sym, tf, klines[-1])
-        book = await ex.order_book(sym, 5)
-        if not book.get("bids") or not book.get("asks"):
-            log.info("⏭️  %s – пустой стакан", sym)
+        last = klines[-1]
+        log.info("RAW %s %s  len=%d  last: %s", sym, tf, len(klines), last)
+        # если high == low – сразу пишем
+        if float(last[2]) == float(last[3]):
+            log.info("FLAT %s %s  h=l=%s", sym, tf, last[2])
             return
+        
+        book = await ex.order_book(sym, 5)    
 
         score = micro_score(klines, sym, tf)
         atr_pc = score["atr_pc"]
@@ -185,11 +189,11 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("⏭️  %s – вне торгового окна", sym)
             return
 
-        #if await is_news_time(5):
-        #    log.info("⏭️  %s – высокий импакт новостей", sym)
-        #    return
+        # if await is_news_time(5):
+        #     log.info("⏭️  %s – высокий импакт новостей", sym)
+        #     return
 
-        if atr_pc < CONFIG.MIN_ATR_PC:
+        if atr_pc > 0 and atr_pc < CONFIG.MIN_ATR_PC:
             log.info("⏭️  %s low atr", sym)
             return
         if vol_usd < CONFIG.MIN_VOL_USD:
@@ -204,8 +208,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         if not await guard(px, side, book, sym):
             return
         if len(klines) < 30:
-            print(f"⏭️  {sym} {tf} only {len(klines)} bars – skip")
-            return   
+            log.info("⏭️  %s %s only %d bars – skip", sym, tf, len(klines))
+            return
 
         sizing = calc(px, atr_pc * px, side, equity, sym)
         if sizing.size <= 0:
@@ -213,6 +217,10 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             return
 
         min_depth = 2 * sizing.size
+        
+        if not book.get("bids") or not book.get("asks"):
+            log.info("⏭️  %s – пустой стакан", sym)
+            return
         if float(book["asks"][0][1]) < min_depth or float(book["bids"][0][1]) < min_depth:
             log.info("⏭️  %s – мелкий стакан", sym)
             return
@@ -270,7 +278,6 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     except Exception as e:
         log.debug("❌ %s data fail: %s", sym, e)
         return
-
 
 # ---------- УРОВЕНЬ МОДУЛЯ ----------
 async def download_weights_once():
