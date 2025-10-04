@@ -37,12 +37,23 @@ from news_filter import is_news_time
 from health_aio import start_health
 
 print("=== DEBUG: импорты завершены ===")
+COL = {
+    "GRN": "\33[32m", "RED": "\33[31m", "YEL": "\33[33m",
+    "BLU": "\33[34m", "MAG": "\33[35m", "RST": "\33[0m"
+}
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(message)s",
-    datefmt="%H:%M",
-)
+class ColouredFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        t = dt.utcfromtimestamp(record.created).strftime("%H:%M")
+        lvl_col = {"INFO": COL["GRN"], "WARNING": COL["YEL"],
+                   "ERROR": COL["RED"]}.get(record.levelname, "")
+        msg = record.getMessage()
+        return f"{COL['BLU']}{t}{COL['RST']} {lvl_col}{record.levelname:>4}{COL['RST']} {msg}"
+
+console = logging.StreamHandler(sys.stdout)
+console.setFormatter(ColouredFormatter())
+logging.basicConfig(level=logging.INFO, handlers=[console], force=True)
+
 log = logging.getLogger("scalper")
 
 POS: dict[str, dict] = {}
@@ -272,9 +283,10 @@ async def download_weights_once():
                 print(f"⚠️  Нет весов {local}, используем дефолт")
 
 async def trade_loop(ex: BingXAsync):
-    global PEAK_BALANCE
+    global PEAK_BALANCE, CYCLE
     await download_weights_once()
     while True:
+        CYCLE += 1
         try:
             equity = await ex.balance()
         except Exception as e:
@@ -282,16 +294,25 @@ async def trade_loop(ex: BingXAsync):
             await asyncio.sleep(5)
             continue
 
-        if PEAK_BALANCE == 0:
+        # 1. сразу поднимаем пик, если баланс вырос
+        if equity > PEAK_BALANCE or PEAK_BALANCE == 0:
             PEAK_BALANCE = equity
+
+        # 2. если всё же в просадке – 1 с пауза и дальше
         if max_drawdown_stop(equity, PEAK_BALANCE):
-            log.error("🛑 Max DD – pause")
-            await asyncio.sleep(60)
+            log.warning("⚠️  DD %.1f %% – skip cycle",
+                        (PEAK_BALANCE - equity) / PEAK_BALANCE * 100)
+            await asyncio.sleep(1)
             continue
-        if equity > PEAK_BALANCE:
-            PEAK_BALANCE = equity
+
         cache.set("balance", equity)
         log.info("💰 Equity %.2f $ (peak %.2f $)", equity, PEAK_BALANCE)
+
+        # ---------- сводка каждые 15 циклов (~30 сек) ----------
+        if CYCLE % 15 == 0:
+            dd = (PEAK_BALANCE - equity) / PEAK_BALANCE * 100 if PEAK_BALANCE else 0.0
+            log.info("📊 EQ:%.2f $  Peak:%.2f $  DD:%.2f%%  POS:%d  ORD:%d",
+                     equity, PEAK_BALANCE, dd, len(POS), len(OPEN_ORDERS))
 
         try:
             api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
@@ -310,8 +331,7 @@ async def trade_loop(ex: BingXAsync):
             await think(ex, sym, equity)
 
         await asyncio.sleep(2)
-        await asyncio.sleep(0)
-
+        
 
 async def main():
     asyncio.create_task(start_health())
