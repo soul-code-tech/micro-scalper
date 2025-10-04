@@ -259,7 +259,7 @@ async def download_weights_once():
             local = f"weights/{fname}"
             if os.path.exists(local):
                 continue
-            url = f"https://raw.githubusercontent.com/{repo}/weights/{fname}"
+            url = f"https://raw.githubusercontent.com/{repo}/weights/{fname}"  # ✅ без пробела
             os.makedirs("weights", exist_ok=True)
             try:
                 async with aiohttp.ClientSession() as s:
@@ -270,7 +270,6 @@ async def download_weights_once():
                 print(f"✅ Скачан {local}")
             except Exception as e:
                 print(f"⚠️  Нет весов {local}, используем дефолт")
-
 
 async def trade_loop(ex: BingXAsync):
     global PEAK_BALANCE
