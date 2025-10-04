@@ -45,7 +45,7 @@ def micro_structure(df: pd.DataFrame) -> pd.Series:
 
     rsi_val = rsi(c, 14)
     atr_val = atr(df, 14)
-    ema9  = c.ewm(span=9).mean()
+    ema9 = c.ewm(span=9).mean()
     ema_dev = (c - ema9) / ema9
     vol_sma = v.rolling(20).mean()
     vol_ratio = v / (vol_sma + 1e-8)
@@ -55,14 +55,14 @@ def micro_structure(df: pd.DataFrame) -> pd.Series:
         "atr": atr_val,
         "ema_dev": ema_dev,
         "vol_r": vol_ratio,
-    }).iloc[-N_LAG-1:]
+    }).iloc[-N_LAG - 1:]
 
     feats = []
     for col in ind.columns:
-        for lag in range(1, N_LAG+1):
+        for lag in range(1, N_LAG + 1):
             feats.append(ind[col].shift(lag).iloc[-1])
         feats.append(ind[col].diff().iloc[-1])
-    return pd.Series(feats)
+    return pd.Series(feats, dtype=np.float32)
 
 def micro_score(klines: list, sym: str, tf: str) -> dict:
     # 1. защита от короткого цикла
