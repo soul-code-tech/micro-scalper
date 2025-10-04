@@ -269,14 +269,12 @@ async def think(ex: BingXAsync, sym: str, equity: float):
 
 # ---------- УРОВЕНЬ МОДУЛЯ ----------
 async def download_weights_once():
-    repo = os.getenv("GITHUB_REPOSITORY", "your-login/your-repo")
+    repo = os.getenv("GITHUB_REPOSITORY", "soul-code-tech/micro-scalper")
     os.makedirs("weights", exist_ok=True)
-    # стягиваем ветку weights
     subprocess.run([
         "git", "clone", "--branch", "weights", "--single-branch",
         f"https://github.com/{repo}.git", "weights_tmp"
     ], check=False)
-    # копируем файлы
     subprocess.run("cp -r weights_tmp/* weights/ 2>/dev/null || true", shell=True)
     subprocess.run("rm -rf weights_tmp", shell=True)
     print("✅ Веса подтянуты из ветки weights")
@@ -284,6 +282,10 @@ async def download_weights_once():
 async def trade_loop(ex: BingXAsync):
     global PEAK_BALANCE, CYCLE
     await download_weights_once()
+    # проверяем, что хоть одна модель есть
+    if not any(os.path.isfile(f"weights/{s.replace('-','')}_{tf}.pkl")
+               for s in CONFIG.SYMBOLS for tf in CONFIG.TIME_FRAMES):
+        log.warning("⚠️  Ни одной модели не найдено – будем использовать fallback-правила")
     while True:
         CYCLE += 1
         try:
