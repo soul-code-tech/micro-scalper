@@ -68,6 +68,10 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
     if len(klines) < N_LAG + 2:
         return {"long": 0.0, "short": 0.0, "atr_pc": 0.0}
 
+    # если пришли словари – превращаем в список списков
+    if klines and isinstance(klines[0], dict):
+        klines = [[d["time"], d["open"], d["high"], d["low"], d["close"], d["volume"]] for d in klines]
+
     df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
 
     # 3. ATR(14) в процентах от цены закрытия
