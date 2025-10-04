@@ -26,6 +26,7 @@ import time
 import traceback
 import aiohttp
 from datetime import datetime, timezone
+from datetime import datetime as dt
 
 from exchange import BingXAsync
 from strategy import micro_score
@@ -41,7 +42,7 @@ COL = {
     "GRN": "\33[32m", "RED": "\33[31m", "YEL": "\33[33m",
     "BLU": "\33[34m", "MAG": "\33[35m", "RST": "\33[0m"
 }
-
+logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
 class ColouredFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         t = dt.utcfromtimestamp(record.created).strftime("%H:%M")
@@ -59,6 +60,7 @@ log = logging.getLogger("scalper")
 POS: dict[str, dict] = {}
 OPEN_ORDERS: dict[str, str] = {}   # symbol -> orderId
 PEAK_BALANCE: float = 0.0
+CYCLE: int = 0
 
 
 def human_float(n: float) -> str:
