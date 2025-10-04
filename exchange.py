@@ -11,18 +11,28 @@ log = logging.getLogger(__name__)
 
 
 class BingXAsync:
-    def __init__(self, api_key: str, secret: str):
+    def __init__(self, api_key: str, secret: str,
+                 session: Optional[aiohttp.ClientSession] = None):
         self.key = api_key
         self.sec = secret
         self.base = "https://open-api.bingx.com"
+        self._external_sess = session  # внешняя сессия (может быть None)
         self.sess: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
-        self.sess = aiohttp.ClientSession(headers={"User-Agent": "Quantum-Scalper/1.0"})
+        if self._external_sess is None:
+            timeout = aiohttp.ClientTimeout(total=10)
+            self.sess = aiohttp.ClientSession(
+                headers={"User-Agent": "Quantum-Scalper/1.0"},
+                timeout=timeout
+            )
+        else:
+            self.sess = self._external_sess
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
-        if self.sess:
+        # закрываем только если создали сами
+        if self._external_sess is None and self.sess:
             await self.sess.close()
 
     # ---------- ПОДПИСЬ ----------
