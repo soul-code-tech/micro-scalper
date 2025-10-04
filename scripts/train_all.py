@@ -58,6 +58,7 @@ async def train_one(sym: str, tf: str):
         prob = clf.predict_proba(X)[:, 1]
         thr = max(0.52, prob.mean())   # реальный порог
 
+# после thr = max(0.52, prob.mean())
 os.makedirs("weights", exist_ok=True)
 with open(f"weights/{sym.replace('-', '')}_{tf}.pkl", "wb") as f:
     pickle.dump({"clf": clf, "thr": thr}, f)
