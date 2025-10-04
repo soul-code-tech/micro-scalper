@@ -60,7 +60,7 @@ async def train_one(sym: str, tf: str):
 
 # после thr = max(0.52, prob.mean())
 os.makedirs("weights", exist_ok=True)
-with open(f"weights/{sym.replace('-', '')}_{tf}.pkl", "wb") as f:
+    with open(f"weights/{sym.replace('-', '')}_{tf}.pkl", "wb") as f:
     pickle.dump({"clf": clf, "thr": thr}, f)
 
 async def main():
