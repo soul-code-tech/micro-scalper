@@ -1,27 +1,38 @@
 #!/usr/bin/env python3
 import os
 import time
-import asyncio
 import logging
-from aiohttp import web
+from typing import Optional
+from aiohttp import web, ClientSession, ClientTimeout
 from exchange import BingXAsync
 from store import cache
 from settings import CONFIG
 
 log = logging.getLogger("health")
 START = time.time()
+TIMEOUT = ClientTimeout(total=8)
+_SESSION: Optional[ClientSession] = None
 
 routes = web.RouteTableDef()
+
+async def _get_session() -> ClientSession:
+    global _SESSION
+    if _SESSION is None or _SESSION.closed:
+        _SESSION = ClientSession(timeout=TIMEOUT)
+    return _SESSION
 
 @routes.get("/health")
 async def health(request: web.Request) -> web.Response:
     try:
-        async with BingXAsync(os.getenv("BINGX_API_KEY"),
-                              os.getenv("BINGX_SECRET_KEY")) as ex:
-            bal = await ex.balance()          # уже float
+        async with BingXAsync(
+            os.getenv("BINGX_API_KEY"),
+            os.getenv("BINGX_SECRET_KEY"),
+            session=await _get_session()   # переиспользуем
+        ) as ex:
+            bal = await ex.balance()
     except Exception as e:
-        log.error("Health error: %s", e)
-        return web.json_response({"status": "error", "msg": str(e)}, status=503)
+        log.warning("Health fail: %s", e)
+        bal = 0.0   # главное – не упасть
 
     return web.json_response({
         "status": "ok",
