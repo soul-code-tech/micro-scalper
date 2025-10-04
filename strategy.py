@@ -24,7 +24,8 @@ def load_model(sym: str, tf: str):
 
 def save_model(sym, tf, scaler, clf, thr):
     os.makedirs(MODEL_DIR, exist_ok=True)
-    joblib.dump({"scaler": scaler, "clf": clf, "thr": thr}, model_path(sym, tf))
+    with open(model_path(sym, tf), "wb") as f:
+        pickle.dump({"scaler": scaler, "clf": clf, "thr": thr}, f)
 def rsi(series: pd.Series, period: int = 14) -> float:
     delta = series.diff()
     gain = delta.where(delta > 0, 0).rolling(period).mean()
