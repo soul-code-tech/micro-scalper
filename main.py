@@ -184,12 +184,12 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
                  sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
         
-        # ➜➜➜ СУПЕР-ОТЛАДКА – видим, где отсекли
-        log.info("DEBUG-FLOW %s px=%s sizing.size=%s min_nom=%s spread=%s",
+        # ➜➜➜ МАЯК – если дошли до сюда, значит все фильтры пройдены
+        log.info("FLOW-OK %s  px=%s sizing=%s book_depth_ask=%s book_depth_bid=%s",
                  sym, human_float(px), sizing.size if sizing else 0,
-                 human_float(min_nom) if 'min_nom' in locals() else '-',
-                 human_float((book['asks'][0][0] - book['bids'][0][0]) / book['bids'][0][0]) if book else '-')
-
+                 book['asks'][0][1] if book else '-',
+                 book['bids'][0][1] if book else '-')
+        
         utc_hour = datetime.now(timezone.utc).hour
         if not (CONFIG.TRADE_HOURS[0] <= utc_hour < CONFIG.TRADE_HOURS[1]):
             log.info("⏭️  %s – вне торгового окна", sym)
