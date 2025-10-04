@@ -90,7 +90,7 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
                 await ex.amend_stop_order(sym, pos["sl_order_id"], new_sl)
                 log.info("🔒 %s amend SL on exchange", sym)
             except Exception as e:
-                log.warning("❌ amend SL %s: %s", sym, e)
+                log.debug("❌ amend SL %s: %s", sym, e)
 
     # TP1 60 % at 1.2×ATR
     if not pos.get("tp1_done"):
@@ -274,7 +274,7 @@ async def download_weights_once():
     # стягиваем ветку weights
     subprocess.run([
         "git", "clone", "--branch", "weights", "--single-branch",
-        f"https://github.com/{repo}.git","weights_tmp"
+        f"https://github.com/{repo}.git", "weights_tmp"
     ], check=False)
     # копируем файлы
     subprocess.run("cp -r weights_tmp/* weights/ 2>/dev/null || true", shell=True)
