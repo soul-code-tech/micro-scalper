@@ -69,7 +69,10 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
         return {"long": 0.0, "short": 0.0, "atr_pc": 0.0}
 
     df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
-    atr_pc = float((df["h"].iloc[-1] - df["l"].iloc[-1]) / df["c"].iloc[-1])
+    # 3. ATR-процент для фильтра
+    atr_pc = float((df["h"].iloc[-1] - df["l"].iloc[-1]) / (df["c"].iloc[-1] + 1e-8))
+    if not np.isfinite(atr_pc):
+        atr_pc = 0.0
 
     scaler, clf, thr = load_model(sym, tf)
     feat = micro_structure(df)
