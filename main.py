@@ -198,7 +198,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             return
         if not await guard(px, side, book, sym):
             return
-        if len(klines) < 52:
+        if len(klines) < 30:
             print(f"⏭️  {sym} {tf} only {len(klines)} bars – skip")
             return   
 
@@ -263,7 +263,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                 log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
 
     except Exception as e:
-        log.warning("❌ %s data fail: %s", sym, e)
+        log.debug("❌ %s data fail: %s", sym, e)
         return
 
 
