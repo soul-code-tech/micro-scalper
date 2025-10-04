@@ -302,8 +302,10 @@ async def trade_loop(ex: BingXAsync):
 
         # 2. если всё же в просадке – 1 с пауза и дальше
         if max_drawdown_stop(equity, PEAK_BALANCE):
-            log.warning("⚠️  DD %.1f %% – skip cycle",
-                        (PEAK_BALANCE - equity) / PEAK_BALANCE * 100)
+            # пишем не чаще 1 раза в 30 сек (15 циклов)
+            if CYCLE % 15 == 0:
+                dd = (PEAK_BALANCE - equity) / PEAK_BALANCE * 100
+                log.warning("⚠️  DD %.1f %% – skip cycle", dd)
             await asyncio.sleep(1)
             continue
 
