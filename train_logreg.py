@@ -42,12 +42,18 @@ async def train(klines: list):
     if len(np.unique(y)) < 2:
         print("⏭️  только один класс – пропуск")
         return
+    if not np.isfinite(X).all():
+        print("⏭️  NaN/Inf в признаках – пропуск")
+        return
 
     clf = LogisticRegression(max_iter=1000, class_weight="balanced")
     clf.fit(X, y)
     acc = accuracy_score(y, clf.predict(X))
-    print(f"✅ обучено {len(y)} примеров, accuracy = {acc:.3f}")
+    if acc < 0.5:
+        print("⏭️  accuracy < 0.5 – не сохраняем")
+        return
 
+    print(f"✅ обучено {len(y)} примеров, accuracy = {acc:.3f}")
     os.makedirs("weights", exist_ok=True)
     with open(MODEL_FILE, "wb") as f:
         pickle.dump(clf, f)
