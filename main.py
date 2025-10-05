@@ -259,9 +259,10 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     except Exception:
         min_nom = CONFIG.MIN_NOTIONAL_FALLBACK
 
-    # ✅ НЕ БОЛЬШЕ 1 % ОТ БАЛАНСА (С ПЛЕЧОМ)
-    max_nom = equity * CONFIG.MAX_BALANCE_PC * CONFIG.LEVERAGE
-    min_nom = min(min_nom, max_nom)          # ← не превышаем риск
+    # ✅ НЕ БОЛЬШЕ 90 % ОТ БАЛАНСА (С ПЛЕЧОМ)
+    max_margin_usd = equity * 0.90
+    max_nom = max_margin_usd * CONFIG.LEVERAGE
+    min_nom = min(min_nom, max_nom)  # ← не превышаем маржу
 
     # ✅ ЕСЛИ НОМИНАЛ МАЛЕНЬКИЙ — ПОДТЯГИВАЕМ ДО МИНИМУМА
     if sizing.size * px < min_nom:
