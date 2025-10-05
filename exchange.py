@@ -142,6 +142,10 @@ class BingXAsync:
 
     async def fetch_positions(self):
         return await self._signed_request("GET", "/openApi/swap/v2/user/positions")
+    
+    async def get_contract_info(self, symbol: str) -> dict:
+        """Возвращает параметры контракта (minOrderQty, lotSize и т.д.)"""
+        return await self._signed_request("GET", "/openApi/swap/v2/quote/contracts", {"symbol": symbol})
 
     async def cancel_all(self, symbol: str):
         await self._signed_request("DELETE", "/openApi/swap/v2/trade/allOpenOrders", {"symbol": symbol})
