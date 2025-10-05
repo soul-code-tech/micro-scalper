@@ -28,6 +28,7 @@ class ScalperConfig:
         **{s: {"MIN_ATR_PC": 0.00020, "MAX_SPREAD": 0.00060} for s in ("DOGE-USDT", "MATIC-USDT", "FTM-USDT")},
     })
     LOT_STEP: float = 0.001  # ✅ ДОБАВЛЕНО — минимальный шаг лота
+    LEVERAGE: int = 20
 CONFIG = ScalperConfig()
 
 def validate_env() -> None:
