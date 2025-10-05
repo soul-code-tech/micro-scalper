@@ -23,40 +23,12 @@ class ScalperConfig:
     TRADE_HOURS: Tuple[int, int] = (0, 24)
     PARTIAL_TP: float = 0.6
 
-    TUNE: Dict[str, Dict[str, float]] = field(default_factory=lambda: {
-    # 1-минутка – только топ-2, очень мягко
-    "BTC-USDT": {
-        "MIN_ATR_PC": 0.00006,   # 0.006 % (в 2 раза ниже)
-        "MAX_SPREAD": 0.00015,   # 0.015 %
-        "TRADE_HOURS": (0, 24),
-        "TP1_MULT": 1.2,
-    },
-    "ETH-USDT": {
-        "MIN_ATR_PC": 0.00008,
-        "MAX_SPREAD": 0.00020,
-        "TRADE_HOURS": (0, 24),
-        "TP1_MULT": 1.25,
-    },
-    # 3m/5m/15m – остальные, но уже пониже
-    "SOL-USDT": {
-        "MIN_ATR_PC": 0.00012,
-        "MAX_SPREAD": 0.00035,
-        "TRADE_HOURS": (0, 24),
-        "TP1_MULT": 1.3,
-    },
-    "XRP-USDT": {
-        "MIN_ATR_PC": 0.00015,
-        "MAX_SPREAD": 0.00045,
-        "TRADE_HOURS": (0, 24),
-        "TP1_MULT": 1.35,
-    },
-    "DOGE-USDT": {
-        "MIN_ATR_PC": 0.00020,
-        "MAX_SPREAD": 0.00060,
-        "TRADE_HOURS": (0, 24),
-        "TP1_MULT": 1.4,
-    },
-})
+    # 3 группы – 3 строки кода
+TUNE: Dict[str, Dict[str, float]] = {
+    **{s: {"MIN_ATR_PC": 0.00006, "MAX_SPREAD": 0.00015} for s in ("BTC-USDT", "ETH-USDT")},
+    **{s: {"MIN_ATR_PC": 0.00012, "MAX_SPREAD": 0.00035} for s in ("SOL-USDT", "BNB-USDT", "ADA-USDT")},
+    **{s: {"MIN_ATR_PC": 0.00020, "MAX_SPREAD": 0.00060} for s in ("DOGE-USDT", "MATIC-USDT", "FTM-USDT")},
+}
 
 CONFIG = ScalperConfig()
 
