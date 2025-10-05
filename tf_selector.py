@@ -10,10 +10,17 @@ log = logging.getLogger("tf_selector")
 CACHE: Dict[str, tuple] = {}   # symbol -> (tf, expire_ts)
 
 async def best_timeframe(ex: BingXAsync, sym: str) -> str:
-    now = asyncio.get_event_loop().time()  # ✅ ИСПРАВЛЕНО: АСИНХРОННАЯ ВЕРСИЯ
+    now = asyncio.get_event_loop().time()
     cached = CACHE.get(sym)
     if cached and cached[1] > now:
+        log.info("⚡️ CACHE HIT for %s → %s", sym, cached[0])
         return cached[0]
+
+    # ⚠️ НЕ ДЕЛАЕМ НИКАКИХ ЗАПРОСОВ К БИРЖЕ ТУТ!
+    # Возвращаем фиксированный fallback — будет выбран в think()
+    log.info("⚡️ CACHE MISS for %s — using fallback 5m", sym)
+    CACHE[sym] = ("5m", now + 60)  # кэшируем на 60 сек — чтобы не трясти каждый цикл
+    return "5m"
 
     signals = {}
     for tf in ("5m", "15m"):
