@@ -250,29 +250,32 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("⏭️  %s sizing zero", sym)
         return
 
-    # ✅ ПРОВЕРКА НА МИНИМАЛЬНЫЙ ЛОТ — ОБЯЗАТЕЛЬНО!
+    # ✅ МИНИМАЛЬНЫЙ НОМИНАЛ — С БИРЖИ ИЛИ ДЕФОЛТ
     try:
         ci = await ex.get_contract_info(sym)
-        min_qty = float(ci["data"][0].get("minQty") or
-                ci["data"][0].get("minOrderQty") or
-                ci["data"][0].get("minQuantity") or
-                0.001)  # ← fallback
-        min_nom = min_qty * px
-    except Exception as e:
-        log.warning("❌ minOrderQty %s: %s", sym, e)
-        return
+        min_nom = float(ci["data"][0].get("minNotional") or
+                        ci["data"][0].get("minNotionalValue") or
+                        CONFIG.MIN_NOTIONAL_FALLBACK)
+    except Exception:
+        min_nom = CONFIG.MIN_NOTIONAL_FALLBACK
 
-    # ✅ ЕСЛИ РАЗМЕР МЕНЬШЕ МИНИМАЛЬНОГО — ПОДТЯГИВАЕМ ДО МИНИМУМА
-    if sizing.size < min_qty:
-        log.info("⚠️  %s sizing %.6f < min_qty %.6f — увеличиваю до min_qty",
-                 sym, sizing.size, min_qty)
+    # ✅ НЕ БОЛЬШЕ 1 % ОТ БАЛАНСА (С ПЛЕЧОМ)
+    max_nom = equity * CONFIG.MAX_BALANCE_PC * CONFIG.LEVERAGE
+    min_nom = min(min_nom, max_nom)          # ← не превышаем риск
+
+    # ✅ ЕСЛИ НОМИНАЛ МАЛЕНЬКИЙ — ПОДТЯГИВАЕМ ДО МИНИМУМА
+    if sizing.size * px < min_nom:
+        new_size = min_nom / px
+        log.info("⚠️  %s nominal %.2f < %.2f USD — увеличиваю до %.6f (%.2f USD)",
+                 sym, sizing.size * px, min_nom, new_size, min_nom)
         sizing = Sizing(
-            size=min_qty,
+            size=new_size,
             sl_px=sizing.sl_px,
             tp_px=sizing.tp_px,
-            partial_qty=min_qty * CONFIG.PARTIAL_TP
+            partial_qty=new_size * CONFIG.PARTIAL_TP
         )
-        log.info("✅ %s adjusted size to min_qty: %.6f", sym, sizing.size)
+        log.info("✅ %s adjusted size to %.6f (risk=%.2f USD)",
+                 sym, sizing.size, sizing.size * px)
 
     min_depth = 2 * sizing.size
 
