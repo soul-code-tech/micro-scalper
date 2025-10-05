@@ -359,6 +359,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                     log.info("🔒 %s SL=%s TP=%s (ордера на бирже)", sym, human_float(sizing.sl_px), human_float(sizing.tp_px))
                 else:
                     log.warning("⚠️  %s ордера SL/TP не выставлены полностью — позиция рискованна!", sym)
+            except Exception as e:  # ← ✅ ДОБАВЛЕНО! ЗАКРЫВАЕМ try
+                log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
 
 # ---------- УРОВЕНЬ МОДУЛЯ ----------
 async def download_weights_once():
