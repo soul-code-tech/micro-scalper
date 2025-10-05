@@ -263,7 +263,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     if sizing.size < min_qty:
         log.info("⚠️  %s sizing %.6f < min_qty %.6f — увеличиваю до min_qty",
                  sym, sizing.size, min_qty)
-         sizing = Sizing(
+        sizing = Sizing(
             size=min_qty,
             sl_px=sizing.sl_px,
             tp_px=sizing.tp_px,
