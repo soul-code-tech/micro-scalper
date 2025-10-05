@@ -116,18 +116,15 @@ class BingXAsync:
         return await self._signed_request("POST", "/openApi/swap/v2/trade/leverage",
                                           {"symbol": symbol, "leverage": leverage, "side": side})
 
-    async def place_order(self, symbol: str, side: str, order_type: str,
-                          quantity: float, price: Optional[float] = None, post_only: bool = True):
+    async def place_order(self, symbol, side, type, quantity, price, time_in_force="GTC"):
         payload = {
-            "symbol": symbol,
-            "side": side.upper(),
-            "type": order_type.upper(),
-            "quantity": f"{quantity:.3f}",
-            "positionSide": "BOTH",
-            "timeInForce": "PO" if post_only else "GTC",
+            "symbol": symbol.replace("-", ""),
+            "side": side,
+            "type": type,
+            "quantity": str(quantity),
+            "price": f"{price:.8f}",         # ← один раз
+            "timeInForce": time_in_force,    # ← добавлено
         }
-        if price is not None:
-            payload["price"] = f"{price:.8f}"
         return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
 
     async def place_stop_order(self, symbol: str, side: str, qty: float,
