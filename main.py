@@ -165,7 +165,6 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         tf = await best_timeframe(ex, sym)
         klines = await ex.klines(sym, tf, 150)
 
-        # ---------- СУПЕР-ДАМП ----------
         if not klines:
             log.info("⏭️ %s %s – klines ПУСТО", sym, tf)
             return
@@ -173,16 +172,15 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("RAW %s %s  len=%d  last: %s", sym, tf, len(klines), last)
         log.info("THINK-CONTINUE %s – расчёт начат", sym)
 
-        # если high == low – сразу пишем
         if float(last[2]) == float(last[3]):
             log.info("FLAT %s %s  h=l=%s", sym, tf, last[2])
             return
 
-        # ✅ ЗАПРОС СТАКАНА — ПЕРВЫЙ АСИНХРОННЫЙ ВЫЗОВ ПОСЛЕ klines
+        # ✅ order_book — первый асинхронный вызов после klines
         book = await ex.order_book(sym, 5)
         log.info("✅ ORDER BOOK FETCHED %s", sym)
 
-        # ✅ ВЫЗОВ micro_score() В ThreadPool — БЕЗ БЛОКИРОВКИ ЦИКЛА
+        # ✅ ВОТ ЭТО ИСПРАВЛЕНИЕ — ОБЁРНУЛИ В ThreadPoolExecutor!
         log.info("⏳ CALLING micro_score() for %s", sym)
         score = await asyncio.get_event_loop().run_in_executor(
             _executor,
@@ -216,10 +214,10 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                  mkt_spread, our_spread, mkt_spread - our_spread,
                  mkt_vol_usd, our_vol)
 
-        # ✅ ПРЕДВАРИТЕЛЬНЫЙ МАЯК — ПЕРЕД ПРОВЕРКАМИ
+        # ✅ PRE-CMP — до фильтров
         log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
 
-        # ✅ ФИЛЬТРЫ — ПОСЛЕ micro_score И order_book
+        # ✅ ФИЛЬТРЫ
         utc_hour = datetime.now(timezone.utc).hour
         if not (CONFIG.TRADE_HOURS[0] <= utc_hour < CONFIG.TRADE_HOURS[1]):
             log.info("⏭️  %s – вне торгового окна", sym)
@@ -243,7 +241,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("⏭️  %s %s only %d bars – skip", sym, tf, len(klines))
             return
 
-        # ✅ ВЫЧИСЛЕНИЕ sizing — ТЕПЕРЬ ОНО ДО FLOW-OK!
+        # ✅ sizing — теперь вычисляется до FLOW-OK
         sizing = calc(px, atr_pc * px, side, equity, sym)
         if sizing.size <= 0:
             log.info("⏭️  %s sizing zero", sym)
@@ -258,12 +256,13 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("⏭️  %s – мелкий стакан", sym)
             return
 
-        # ✅ ФИНАЛЬНЫЙ МАЯК — ВСЁ ПРОЙДЕНО
+        # ✅ FLOW-OK — ВСЁ ПРОЙДЕНО
         log.info("FLOW-OK %s  px=%s sizing=%s book_depth_ask=%s book_depth_bid=%s",
                  sym, human_float(px), sizing.size,
                  book['asks'][0][1] if book else '-',
                  book['bids'][0][1] if book else '-')
 
+        # ... остальной код без изменений ...
         if sym not in POS and sym not in OPEN_ORDERS:
             try:
                 await ex.set_leverage(sym, 50)
