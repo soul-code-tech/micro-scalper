@@ -176,10 +176,6 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("FLAT %s %s  h=l=%s", sym, tf, last[2])
             return
 
-        # ✅ order_book — первый асинхронный вызов после klines
-        book = await ex.order_book(sym, 5)
-        log.info("✅ ORDER BOOK FETCHED %s", sym)
-
         # ✅ ВОТ ЭТО ИСПРАВЛЕНИЕ — ОБЁРНУЛИ В ThreadPoolExecutor!
         log.info("⏳ CALLING micro_score() for %s", sym)
         score = await asyncio.get_event_loop().run_in_executor(
@@ -190,7 +186,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("✅ micro_score() DONE for %s", sym)
 
         atr_pc = score["atr_pc"]
-        px = float(book["asks"][0][0]) if score["long"] > score["short"] else float(book["bids"][0][0])
+        px = float(klines[-1][4])  # ← Цена закрытия последнего бара — точная и безопасная
         vol_usd = float(klines[-1][5]) * px
         side = ("LONG" if score["long"] > score["short"] else
                 "SHORT" if score["short"] > score["long"] else None)
@@ -389,7 +385,7 @@ async def trade_loop(ex: BingXAsync):
                 continue
             await think(ex, sym, equity)
 
-        await asyncio.sleep(2)
+        await asyncio.sleep(15)
 
 
 async def main():
