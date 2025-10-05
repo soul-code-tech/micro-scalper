@@ -263,7 +263,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         min_nom = CONFIG.MIN_NOTIONAL_FALLBACK
 
     # ✅ Максимум 95% баланса × плечо
-    max_margin_usd = equity * 0.95
+    max_margin_usd = equity * 0.10
     max_nom = max_margin_usd * CONFIG.LEVERAGE
     min_nom = min(min_nom, max_nom)
 
