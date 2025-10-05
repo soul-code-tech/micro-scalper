@@ -351,7 +351,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             atr=atr_pc * px,
             breakeven_done=False,
         )
-            log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
+        log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
                      sym, side, sizing.size, human_float(px),
                      human_float(sizing.sl_px), human_float(sizing.tp_px))
 
