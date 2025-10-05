@@ -334,31 +334,31 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             sl_side = "SELL" if side == "LONG" else "BUY"
             tp_side = "SELL" if side == "LONG" else "BUY"
 
-        try:
-            sl_order = await ex.place_stop_order(sym, sl_side, sizing.size, sizing.sl_px, "STOP_MARKET")
-            tp_order = await ex.place_stop_order(sym, tp_side, sizing.size, sizing.tp_px, "TAKE_PROFIT_MARKET")
+            try:
+                sl_order = await ex.place_stop_order(sym, sl_side, sizing.size, sizing.sl_px, "STOP_MARKET")
+                tp_order = await ex.place_stop_order(sym, tp_side, sizing.size, sizing.tp_px, "TAKE_PROFIT_MARKET")
 
-            # ✅ ПРОВЕРКА SL
-            if sl_order and sl_order.get("code") == 0:
-                sl_oid = sl_order["data"]["orderId"]
-                POS[sym]["sl_order_id"] = sl_oid
-                log.info("✅ %s SL=%s выставлен (ID: %s)", sym, human_float(sizing.sl_px), sl_oid)
-            else:
-                log.warning("⚠️  %s не смог выставить SL: %s", sym, sl_order)
+                # ✅ ПРОВЕРКА SL
+                if sl_order and sl_order.get("code") == 0:
+                    sl_oid = sl_order["data"]["orderId"]
+                    POS[sym]["sl_order_id"] = sl_oid
+                    log.info("✅ %s SL=%s выставлен (ID: %s)", sym, human_float(sizing.sl_px), sl_oid)
+                else:
+                    log.warning("⚠️  %s не смог выставить SL: %s", sym, sl_order)
 
-            # ✅ ПРОВЕРКА TP
-            if tp_order and tp_order.get("code") == 0:
-                tp_oid = tp_order["data"]["orderId"]
-                POS[sym]["tp_order_id"] = tp_oid
-                log.info("✅ %s TP=%s выставлен (ID: %s)", sym, human_float(sizing.tp_px), tp_oid)
-            else:
-                log.warning("⚠️  %s не смог выставить TP: %s", sym, tp_order)
+                # ✅ ПРОВЕРКА TP
+                if tp_order and tp_order.get("code") == 0:
+                    tp_oid = tp_order["data"]["orderId"]
+                    POS[sym]["tp_order_id"] = tp_oid
+                    log.info("✅ %s TP=%s выставлен (ID: %s)", sym, human_float(sizing.tp_px), tp_oid)
+                else:
+                    log.warning("⚠️  %s не смог выставить TP: %s", sym, tp_order)
 
-            # ✅ ТОЛЬКО ЕСЛИ ОБА ОРДЕРА УСПЕШНЫ — ПИШЕМ ЛОГ
-            if sl_order and sl_order.get("code") == 0 and tp_order and tp_order.get("code") == 0:
-                log.info("🔒 %s SL=%s TP=%s (ордера на бирже)", sym, human_float(sizing.sl_px), human_float(sizing.tp_px))
-            else:
-                log.warning("⚠️  %s ордера SL/TP не выставлены полностью — позиция рискованна!", sym)
+                # ✅ ТОЛЬКО ЕСЛИ ОБА ОРДЕРА УСПЕШНЫ — ПИШЕМ ЛОГ
+                if sl_order and sl_order.get("code") == 0 and tp_order and tp_order.get("code") == 0:
+                    log.info("🔒 %s SL=%s TP=%s (ордера на бирже)", sym, human_float(sizing.sl_px), human_float(sizing.tp_px))
+                else:
+                    log.warning("⚠️  %s ордера SL/TP не выставлены полностью — позиция рискованна!", sym)
 
 # ---------- УРОВЕНЬ МОДУЛЯ ----------
 async def download_weights_once():
