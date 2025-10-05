@@ -208,7 +208,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
              sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
 
     # ---------- РЫНОК vs НАШИ ХАРАКТЕРИСТИКИ ----------
-    tune = CONFIG.TUNE.get(sym, {})
+    tune = getattr(CONFIG, 'TUNE', {}).get(sym, {})
     our_atr_pc = tune.get("MIN_ATR_PC", CONFIG.MIN_ATR_PC)
     our_spread = tune.get("MAX_SPREAD", CONFIG.MAX_SPREAD)
     our_vol = CONFIG.MIN_VOL_USD
