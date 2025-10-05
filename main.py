@@ -293,9 +293,9 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         except Exception as e:
             log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
 
-    except Exception as e:
-        log.debug("❌ %s data fail: %s", sym, e)
-        return
+        except Exception as e:
+            log.debug("❌ %s data fail: %s", sym, e)
+            return
 
 
 # ---------- УРОВЕНЬ МОДУЛЯ ----------
