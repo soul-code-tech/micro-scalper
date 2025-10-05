@@ -214,10 +214,6 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("⏭️  %s – вне торгового окна", sym)
             return
 
-        # if await is_news_time(5):
-        #     log.info("⏭️  %s – высокий импакт новостей", sym)
-        #     return
-
         if atr_pc > 0 and atr_pc < CONFIG.MIN_ATR_PC:
             log.info("⏭️  %s low atr", sym)
             return
