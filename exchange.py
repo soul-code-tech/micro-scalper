@@ -116,26 +116,16 @@ class BingXAsync:
         return await self._signed_request("POST", "/openApi/swap/v2/trade/leverage",
                                           {"symbol": symbol, "leverage": leverage, "side": side})
 
+   
     async def place_order(self, symbol, side, type, quantity, price, time_in_force="GTC"):
         payload = {
-            "symbol": symbol.replace("-", ""),
-            "side": side,
-            "type": type,
-            "quantity": str(quantity),
-            "price": f"{price:.8f}",         # ← один раз
-            "timeInForce": time_in_force,    # ← добавлено
-        }
-        return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
-
-    async def place_order(self, symbol, side, type, quantity, price, time_in_force="GTC"):
-        payload = {
-            "symbol": symbol,                 # ← без replace
+            "symbol": symbol,
             "side": side,
             "type": type,
             "quantity": str(quantity),
             "price": f"{price:.8f}",
             "timeInForce": time_in_force,
-            "positionSide": "BOTH",           # ← добавлено
+            "positionSide": side,   # ← теперь точно LONG / SHORT
         }
         return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
 
