@@ -168,10 +168,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         last = klines[-1]
         log.info("RAW %s %s  len=%d  last: %s", sym, tf, len(klines), last)
         log.info("THINK-CONTINUE %s – расчёт начат", sym)   # ← добавьте эту
-        
-        # ➜➜➜ маяк – до расчёта наших vs рынка
-        log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
-       
+                   
         # если high == low – сразу пишем
         if float(last[2]) == float(last[3]):
             log.info("FLAT %s %s  h=l=%s", sym, tf, last[2])
@@ -189,9 +186,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
                  sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
        
-        # ➜➜➜ маяк – до расчёта наших vs рынка
-        log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
-       
+               
         # ---------- РЫНОК vs НАШИ ХАРАКТЕРИСТИКИ ----------
         # ➜➜➜ маяк – до расчёта наших vs рынка
         log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
