@@ -161,154 +161,137 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.warning("❌ не смог проверить ордер %s: %s", sym, e)
             return
 
+    tf = await best_timeframe(ex, sym)
+    klines = await ex.klines(sym, tf, 150)
+
+    if not klines:
+        log.info("⏭️ %s %s – klines ПУСТО", sym, tf)
+        return
+    last = klines[-1]
+    log.info("RAW %s %s  len=%d  last: %s", sym, tf, len(klines), last)
+    log.info("THINK-CONTINUE %s – расчёт начат", sym)
+
+    if float(last[2]) == float(last[3]):
+        log.info("FLAT %s %s  h=l=%s", sym, tf, last[2])
+        return
+
+    # ✅ ВОТ ЭТО ИСПРАВЛЕНИЕ — ОБЁРНУЛИ В ThreadPoolExecutor!
+    log.info("⏳ CALLING micro_score() for %s", sym)
+    score = await asyncio.get_event_loop().run_in_executor(
+        _executor,
+        micro_score,
+        klines, sym, tf
+    )
+    log.info("✅ micro_score() DONE for %s", sym)
+
+    atr_pc = score["atr_pc"]
+    px = float(klines[-1][4])  # ← Цена закрытия
+    vol_usd = float(klines[-1][5]) * px
+    side = ("LONG" if score["long"] > score["short"] else
+            "SHORT" if score["short"] > score["long"] else None)
+
+    log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
+             sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
+
+    # ---------- РЫНОК vs НАШИ ХАРАКТЕРИСТИКИ ----------
+    tune = CONFIG.TUNE.get(sym, {})
+    our_atr_pc = tune.get("MIN_ATR_PC", CONFIG.MIN_ATR_PC)
+    our_spread = tune.get("MAX_SPREAD", CONFIG.MAX_SPREAD)
+    our_vol = CONFIG.MIN_VOL_USD
+
+    mkt_spread = 0  # не используем order_book — не считаем
+    mkt_vol_usd = vol_usd
+    mkt_atr_pc = atr_pc
+
+    log.info("CMP %s atr_pc: %.5f vs %.5f (Δ=%.5f)  spread: N/A  vol: %.0f vs %.0f",
+             sym,
+             mkt_atr_pc, our_atr_pc, mkt_atr_pc - our_atr_pc,
+             mkt_vol_usd, our_vol)
+
+    # ✅ PRE-CMP — до фильтров
+    log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
+
+    # ✅ ФИЛЬТРЫ
+    utc_hour = datetime.now(timezone.utc).hour
+    if not (CONFIG.TRADE_HOURS[0] <= utc_hour < CONFIG.TRADE_HOURS[1]):
+        log.info("⏭️  %s – вне торгового окна", sym)
+        return
+
+    if atr_pc > 0 and atr_pc < CONFIG.MIN_ATR_PC:
+        log.info("⏭️  %s low atr", sym)
+        return
+    if vol_usd < CONFIG.MIN_VOL_USD:
+        log.info("⏭️  %s low vol", sym)
+        return
+    if not side:
+        log.info("⏭️  %s no side", sym)
+        return
+    if len(POS) >= CONFIG.MAX_POS:
+        log.info("⏭️  %s max pos reached", sym)
+        return
+
+    # ✅ sizing — теперь вычисляется до FLOW-OK
+    sizing = calc(px, atr_pc * px, side, equity, sym)
+    if sizing.size <= 0:
+        log.info("⏭️  %s sizing zero", sym)
+        return
+
+    min_depth = 2 * sizing.size
+
+    # ✅ FLOW-OK — ВСЁ ПРОЙДЕНО
+    log.info("FLOW-OK %s  px=%s sizing=%s book_depth_ask=- book_depth_bid=-",
+             sym, human_float(px), sizing.size)
+
+    if sym not in POS and sym not in OPEN_ORDERS:
+        try:
+            await ex.set_leverage(sym, 50)
+        except RuntimeError as e:
+            if "leverage already set" not in str(e):
+                log.warning("⚠️  set_leverage %s: %s", sym, e)
+
     try:
-        tf = await best_timeframe(ex, sym)
-        klines = await ex.klines(sym, tf, 150)
+        ci = await ex.get_contract_info(sym)
+        min_qty = float(ci["data"]["minOrderQty"])
+        min_nom = min_qty * px
+    except Exception as e:
+        log.warning("❌ minOrderQty %s: %s", sym, e)
+        return
 
-        if not klines:
-            log.info("⏭️ %s %s – klines ПУСТО", sym, tf)
-            return
-        last = klines[-1]
-        log.info("RAW %s %s  len=%d  last: %s", sym, tf, len(klines), last)
-        log.info("THINK-CONTINUE %s – расчёт начат", sym)
+    if sizing.size * px < min_nom:
+        log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
+        return
 
-        if float(last[2]) == float(last[3]):
-            log.info("FLAT %s %s  h=l=%s", sym, tf, last[2])
-            return
-
-        # ✅ ВОТ ЭТО ИСПРАВЛЕНИЕ — ОБЁРНУЛИ В ThreadPoolExecutor!
-        log.info("⏳ CALLING micro_score() for %s", sym)
-        score = await asyncio.get_event_loop().run_in_executor(
-            _executor,
-            micro_score,
-            klines, sym, tf
+    bingx_side = "BUY" if side == "LONG" else "SELL"
+    order = await ex.place_order(sym, bingx_side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
+    log.info("PLACE-RESP %s %s", sym, order)
+    if order and order.get("code") == 0:
+        oid = order["data"]["orderId"]
+        POS[sym] = dict(
+            side=side,
+            qty=sizing.size,
+            entry=px,
+            sl=sizing.sl_px,
+            sl_orig=sizing.sl_px,
+            tp=sizing.tp_px,
+            part=sizing.partial_qty,
+            oid=oid,
+            atr=atr_pc * px,
+            breakeven_done=False,
         )
-        log.info("✅ micro_score() DONE for %s", sym)
-
-        atr_pc = score["atr_pc"]
-        px = float(klines[-1][4])  # ← Цена закрытия последнего бара — точная и безопасная
-        vol_usd = float(klines[-1][5]) * px
-        side = ("LONG" if score["long"] > score["short"] else
-                "SHORT" if score["short"] > score["long"] else None)
-
-        log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
-                 sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
-
-        # ---------- РЫНОК vs НАШИ ХАРАКТЕРИСТИКИ ----------
-        tune = CONFIG.TUNE.get(sym, {})
-        our_atr_pc = tune.get("MIN_ATR_PC", CONFIG.MIN_ATR_PC)
-        our_spread = tune.get("MAX_SPREAD", CONFIG.MAX_SPREAD)
-        our_vol = CONFIG.MIN_VOL_USD
-
-        mkt_spread = (float(book["asks"][0][0]) - float(book["bids"][0][0])) / float(book["bids"][0][0])
-        mkt_vol_usd = vol_usd
-        mkt_atr_pc = atr_pc
-
-        log.info("CMP %s atr_pc: %.5f vs %.5f (Δ=%.5f)  spread: %.5f vs %.5f (Δ=%.5f)  vol: %.0f vs %.0f",
-                 sym,
-                 mkt_atr_pc, our_atr_pc, mkt_atr_pc - our_atr_pc,
-                 mkt_spread, our_spread, mkt_spread - our_spread,
-                 mkt_vol_usd, our_vol)
-
-        # ✅ PRE-CMP — до фильтров
-        log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
-
-        # ✅ ФИЛЬТРЫ
-        utc_hour = datetime.now(timezone.utc).hour
-        if not (CONFIG.TRADE_HOURS[0] <= utc_hour < CONFIG.TRADE_HOURS[1]):
-            log.info("⏭️  %s – вне торгового окна", sym)
-            return
-
-        if atr_pc > 0 and atr_pc < CONFIG.MIN_ATR_PC:
-            log.info("⏭️  %s low atr", sym)
-            return
-        if vol_usd < CONFIG.MIN_VOL_USD:
-            log.info("⏭️  %s low vol", sym)
-            return
-        if not side:
-            log.info("⏭️  %s no side", sym)
-            return
-        if len(POS) >= CONFIG.MAX_POS:
-            log.info("⏭️  %s max pos reached", sym)
-            return
-        if not await guard(px, side, book, sym):
-            return
-        if len(klines) < 30:
-            log.info("⏭️  %s %s only %d bars – skip", sym, tf, len(klines))
-            return
-
-        # ✅ sizing — теперь вычисляется до FLOW-OK
-        sizing = calc(px, atr_pc * px, side, equity, sym)
-        if sizing.size <= 0:
-            log.info("⏭️  %s sizing zero", sym)
-            return
-
-        min_depth = 2 * sizing.size
-
-        if not book.get("bids") or not book.get("asks"):
-            log.info("⏭️  %s – пустой стакан", sym)
-            return
-        if float(book["asks"][0][1]) < min_depth or float(book["bids"][0][1]) < min_depth:
-            log.info("⏭️  %s – мелкий стакан", sym)
-            return
-
-        # ✅ FLOW-OK — ВСЁ ПРОЙДЕНО
-        log.info("FLOW-OK %s  px=%s sizing=%s book_depth_ask=%s book_depth_bid=%s",
-                 sym, human_float(px), sizing.size,
-                 book['asks'][0][1] if book else '-',
-                 book['bids'][0][1] if book else '-')
-
-        # ... остальной код без изменений ...
-        if sym not in POS and sym not in OPEN_ORDERS:
-            try:
-                await ex.set_leverage(sym, 50)
-            except RuntimeError as e:
-                if "leverage already set" not in str(e):
-                    log.warning("⚠️  set_leverage %s: %s", sym, e)
+        log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
+                 sym, side, sizing.size, human_float(px),
+                 human_float(sizing.sl_px), human_float(sizing.tp_px))
+        sl_side = "SELL" if side == "LONG" else "BUY"
+        tp_side = "SELL" if side == "LONG" else "BUY"
 
         try:
-            ci = await ex.get_contract_info(sym)
-            min_qty = float(ci["data"]["minOrderQty"])
-            min_nom = min_qty * px
+            sl_order = await ex.place_stop_order(sym, sl_side, sizing.size, sizing.sl_px, "STOP_MARKET")
+            tp_order = await ex.place_stop_order(sym, tp_side, sizing.size, sizing.tp_px, "TAKE_PROFIT_MARKET")
+            POS[sym]["sl_order_id"] = sl_order["data"]["orderId"]
+            POS[sym]["tp_order_id"] = tp_order["data"]["orderId"]
+            log.info("🔒 %s SL=%s TP=%s (ордера на бирже)", sym, human_float(sizing.sl_px), human_float(sizing.tp_px))
         except Exception as e:
-            log.warning("❌ minOrderQty %s: %s", sym, e)
-            return
-
-        if sizing.size * px < min_nom:
-            log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
-            return
-
-        bingx_side = "BUY" if side == "LONG" else "SELL"
-        order = await ex.place_order(sym, bingx_side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
-        log.info("PLACE-RESP %s %s", sym, order)
-        if order and order.get("code") == 0:
-            oid = order["data"]["orderId"]
-            POS[sym] = dict(
-                side=side,
-                qty=sizing.size,
-                entry=px,
-                sl=sizing.sl_px,
-                sl_orig=sizing.sl_px,
-                tp=sizing.tp_px,
-                part=sizing.partial_qty,
-                oid=oid,
-                atr=atr_pc * px,
-                breakeven_done=False,
-            )
-            log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
-                     sym, side, sizing.size, human_float(px),
-                     human_float(sizing.sl_px), human_float(sizing.tp_px))
-            sl_side = "SELL" if side == "LONG" else "BUY"
-            tp_side = "SELL" if side == "LONG" else "BUY"
-
-            try:
-                sl_order = await ex.place_stop_order(sym, sl_side, sizing.size, sizing.sl_px, "STOP_MARKET")
-                tp_order = await ex.place_stop_order(sym, tp_side, sizing.size, sizing.tp_px, "TAKE_PROFIT_MARKET")
-                POS[sym]["sl_order_id"] = sl_order["data"]["orderId"]
-                POS[sym]["tp_order_id"] = tp_order["data"]["orderId"]
-                log.info("🔒 %s SL=%s TP=%s (ордера на бирже)", sym, human_float(sizing.sl_px), human_float(sizing.tp_px))
-            except Exception as e:
-                log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
+            log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
 
     except Exception as e:
         log.debug("❌ %s data fail: %s", sym, e)
