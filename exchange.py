@@ -126,7 +126,7 @@ class BingXAsync:
             "quantity": str(quantity),
             "price": f"{price:.8f}",
             "timeInForce": time_in_force,
-            "positionSide": side.upper(),    # ← гарантия UPPER-CASE
+            "positionSide": "LONG" if side == "BUY" else "SHORT",  # ← переводим в LONG / SHORT    # ← гарантия UPPER-CASE
         }
         return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
 
