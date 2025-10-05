@@ -187,10 +187,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                  sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
        
                
-        # ---------- РЫНОК vs НАШИ ХАРАКТЕРИСТИКИ ----------
-        # ➜➜➜ маяк – до расчёта наших vs рынка
-        log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
-        
+        # ---------- РЫНОК vs НАШИ ХАРАКТЕРИСТИКИ ----------    
         tune = CONFIG.TUNE.get(sym, {})
         our_atr_pc = tune.get("MIN_ATR_PC", CONFIG.MIN_ATR_PC)
         our_spread = tune.get("MAX_SPREAD", CONFIG.MAX_SPREAD)
@@ -252,7 +249,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         if float(book["asks"][0][1]) < min_depth or float(book["bids"][0][1]) < min_depth:
             log.info("⏭️  %s – мелкий стакан", sym)
             return
-
+         # ➜➜➜ маяк – до расчёта наших vs рынка
+        log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
         if sym not in POS and sym not in OPEN_ORDERS:
             try:
                 await ex.set_leverage(sym, 50)
