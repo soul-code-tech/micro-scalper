@@ -36,7 +36,7 @@ def calc(entry: float, atr: float, side: str, equity: float, sym: str,
     tp_mult   = CONFIG.TP1_MULT
 
     # 2. если для пары задана тонкая настройка – берём оттуда
-    if sym and sym in CONFIG.TUNE:
+    if sym and sym in getattr(CONFIG, 'TUNE', {}):
         atr_mult = CONFIG.TUNE[sym].get("ATR_MULT_SL", atr_mult)
         rr       = CONFIG.TUNE[sym].get("RR",         rr)
         tp_mult  = CONFIG.TUNE[sym].get("TP1_MULT",   tp_mult)
