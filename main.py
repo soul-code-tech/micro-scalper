@@ -253,7 +253,10 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     # ✅ ПРОВЕРКА НА МИНИМАЛЬНЫЙ ЛОТ — ОБЯЗАТЕЛЬНО!
     try:
         ci = await ex.get_contract_info(sym)
-        min_qty = float(ci["data"][0]["minQty"])   # ← data[0] — список
+        min_qty = float(ci["data"][0].get("minQty") or
+                ci["data"][0].get("minOrderQty") or
+                ci["data"][0].get("minQuantity") or
+                0.001)  # ← fallback
         min_nom = min_qty * px
     except Exception as e:
         log.warning("❌ minOrderQty %s: %s", sym, e)
