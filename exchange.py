@@ -117,26 +117,23 @@ class BingXAsync:
                                           {"symbol": symbol, "leverage": leverage, "side": side})
 
     
-    async def place_order(self, symbol, side, type, quantity, price, time_in_force="GTC"):
-        log.info("DEBUG: side=%s positionSide=%s", side, side.upper())
+    async def place_order(self, symbol: str, side: str, order_type: str,
+                          quantity: float, price: Optional[float] = None, time_in_force: str = "PostOnly"):
+        """
+        side: "LONG" or "SHORT" — как возвращается из micro_score()
+        """
         payload = {
             "symbol": symbol,
-            "side": side,                    # ← "LONG" / "SHORT"
-            "type": type,
-            "quantity": str(quantity),
-            "price": f"{price:.8f}",
+            "side": side,                    # ← "LONG" или "SHORT" — ТОЧНО, как ожидает BingX
+            "type": order_type.upper(),      # ← "LIMIT", "MARKET" и т.д.
+            "quantity": f"{quantity:.3f}",   # ← форматируем с 3 знаками
+            "price": f"{price:.8f}" if price is not None else None,
             "timeInForce": time_in_force,
-            "positionSide": "LONG" if side == "BUY" else "SHORT",  # ← переводим в LONG / SHORT    # ← гарантия UPPER-CASE
+            "positionSide": side,            # ← ТОЖЕ "LONG" или "SHORT" — без перевода!
         }
+        # Убираем None из payload
+        payload = {k: v for k, v in payload.items() if v is not None}
         return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
-
-    async def amend_stop_order(self, symbol: str, order_id: str, stop_px: float) -> dict:
-        payload = {
-            "symbol": symbol,
-            "orderId": order_id,
-            "stopPrice": f"{stop_px:.8f}",
-        }
-        return await self._signed_request("PUT", "/openApi/swap/v2/trade/order", payload)
 
     async def close_position(self, symbol: str, side: str, quantity: float):
         return await self.place_order(symbol, side, "MARKET", quantity, post_only=False)
