@@ -274,9 +274,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
             return
 
-        bingx_side = "BUY" if side == "LONG" else "SELL"
-        order = await ex.place_order(sym, bingx_side, "LIMIT", sizing.size, px,
-                             "PostOnly")   # ← 6-й аргумент, строка
+        order = await ex.place_order(sym, side, "LIMIT", sizing.size, px, "PostOnly")
         log.info("PLACE-RESP %s %s", sym, order)
 
         if order and order.get("code") == 0:
