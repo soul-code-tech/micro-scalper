@@ -31,7 +31,7 @@ import concurrent.futures
 
 from exchange import BingXAsync
 from strategy import micro_score
-from risk import calc, max_drawdown_stop
+from risk import calc, max_drawdown_stop, Sizing
 from store import cache
 from settings import CONFIG
 from tf_selector import best_timeframe
