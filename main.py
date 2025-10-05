@@ -193,6 +193,9 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
        
         # ---------- РЫНОК vs НАШИ ХАРАКТЕРИСТИКИ ----------
+        # ➜➜➜ маяк – до расчёта наших vs рынка
+        log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
+        
         tune = CONFIG.TUNE.get(sym, {})
         our_atr_pc = tune.get("MIN_ATR_PC", CONFIG.MIN_ATR_PC)
         our_spread = tune.get("MAX_SPREAD", CONFIG.MAX_SPREAD)
