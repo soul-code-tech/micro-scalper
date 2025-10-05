@@ -4,8 +4,8 @@ import os
 
 @dataclass(slots=True)
 class ScalperConfig:
-    SYMBOLS: Tuple[str, ...] = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT")
-    TIME_FRAMES: Tuple[str, ...] = ("3m", "5m",)
+    SYMBOLS: Tuple[str, ...] = ("ADA-USDT", "ETH-USDT", "BNB-USDT", "XRP-USDT", "DOGE-USDT")
+    TIME_FRAMES: Tuple[str, ...] = ("5m")
     MAX_BALANCE_PC: float = 0.01          # 1 % от баланса
     MIN_NOTIONAL_FALLBACK: float = 500   # USD, если биржа не дала
     MAX_POS: int = 3
