@@ -17,7 +17,6 @@ class ScalperConfig:
     MIN_ATR_PC: float = 0.00015
     MAX_SPREAD: float = 0.0003
     MIN_VOL_USD: int = 1_000
-    POST_ONLY: str = "PostOnly"   # ← строка, не булеан
     ORDER_TO: int = 8
     HEALTH_PORT: int = field(default_factory=lambda: int(os.getenv("PORT", "10000")))
     TRADE_HOURS: Tuple[int, int] = (0, 24)
