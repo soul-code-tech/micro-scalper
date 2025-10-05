@@ -5,7 +5,7 @@ import os
 @dataclass(slots=True)
 class ScalperConfig:
     SYMBOLS: Tuple[str, ...] = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT")
-    TIME_FRAMES: Tuple[str, ...] = ("5m")
+    TIME_FRAMES: Tuple[str, ...] = ("3m", "5m", "15m")
     MAX_POS: int = 3
     RISK_PER_TRADE: float = 0.15
     KELLY_F: float = 0.15
@@ -22,14 +22,12 @@ class ScalperConfig:
     HEALTH_PORT: int = field(default_factory=lambda: int(os.getenv("PORT", "10000")))
     TRADE_HOURS: Tuple[int, int] = (0, 24)
     PARTIAL_TP: float = 0.6
-
-    # 3 группы – 3 строки кода
-TUNE: Dict[str, Dict[str, float]] = {
-    **{s: {"MIN_ATR_PC": 0.00006, "MAX_SPREAD": 0.00015} for s in ("BTC-USDT", "ETH-USDT")},
-    **{s: {"MIN_ATR_PC": 0.00012, "MAX_SPREAD": 0.00035} for s in ("SOL-USDT", "BNB-USDT", "ADA-USDT")},
-    **{s: {"MIN_ATR_PC": 0.00020, "MAX_SPREAD": 0.00060} for s in ("DOGE-USDT", "MATIC-USDT", "FTM-USDT")},
-}
-
+    TUNE: Dict[str, Dict[str, float]] = field(default_factory=lambda: {
+        **{s: {"MIN_ATR_PC": 0.00006, "MAX_SPREAD": 0.00015} for s in ("BTC-USDT", "ETH-USDT")},
+        **{s: {"MIN_ATR_PC": 0.00012, "MAX_SPREAD": 0.00035} for s in ("SOL-USDT", "BNB-USDT", "ADA-USDT")},
+        **{s: {"MIN_ATR_PC": 0.00020, "MAX_SPREAD": 0.00060} for s in ("DOGE-USDT", "MATIC-USDT", "FTM-USDT")},
+    })
+    LOT_STEP: float = 0.001  # ✅ ДОБАВЛЕНО — минимальный шаг лота
 CONFIG = ScalperConfig()
 
 def validate_env() -> None:
