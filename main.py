@@ -207,6 +207,10 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("FLAT %s %s  h=l=%s", sym, tf, last[2])
         return
 
+    # ✅ order_book — первый асинхронный вызов после klines
+    book = await ex.order_book(sym, 5)
+    log.info("✅ ORDER BOOK FETCHED %s", sym)
+
     # ✅ Вызываем micro_score в отдельном потоке
     log.info("⏳ CALLING micro_score() for %s", sym)
     score = await asyncio.get_event_loop().run_in_executor(
@@ -217,23 +221,17 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     log.info("✅ micro_score() DONE for %s", sym)
 
     atr_pc = score["atr_pc"]
-    # Вместо px = klines[-1][4] (цена закрытия)
-    # Используйте лучшую цену покупки (bid) — но с небольшим отступом
-
-    book = await ex.order_book(sym, 1)
-    best_bid = float(book["bids"][0][0])
-    best_ask = float(book["asks"][0][0])
-
-    if side == "LONG":
-        px = best_bid * 0.9999  # чуть ниже лучшей цены — гарантированно маркет-мейкер
-    elif side == "SHORT":
-        px = best_ask * 1.0001  # чуть выше лучшей цены — гарантированно маркет-мейкер
+    px = float(klines[-1][4])  # ← Цена закрытия (без order_book!)
     vol_usd = float(klines[-1][5]) * px
     side = ("LONG" if score["long"] > score["short"] else
             "SHORT" if score["short"] > score["long"] else None)
 
     log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
              sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
+
+    # ✅ ПРОВЕРКА СПРЕДА — ТЕПЕРЬ ПОСЛЕ side!
+    if not await guard(px, side, book, sym):
+        return
 
     # ---------- РЫНОК vs НАШИ ХАРАКТЕРИСТИКИ ----------
     tune = getattr(CONFIG, 'TUNE', {}).get(sym, {})
@@ -376,7 +374,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                     log.info("🔒 %s SL=%s TP=%s (ордера на бирже)", sym, human_float(sizing.sl_px), human_float(sizing.tp_px))
                 else:
                     log.warning("⚠️  %s ордера SL/TP не выставлены полностью — позиция рискованна!", sym)
-            except Exception as e:  # ← ✅ ДОБАВЛЕНО! ЗАКРЫВАЕМ try
+
+            except Exception as e:
                 log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
 
 # ---------- УРОВЕНЬ МОДУЛЯ ----------
@@ -449,7 +448,7 @@ async def trade_loop(ex: BingXAsync):
                 continue
             await think(ex, sym, equity)
 
-        await asyncio.sleep(15)
+        await asyncio.sleep(20)
 
 
 async def main():
