@@ -244,16 +244,16 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("⏭️  %s max pos reached", sym)
         return
 
-        # ✅ sizing — теперь вычисляется до FLOW-OK
+    # ✅ sizing — теперь вычисляется до FLOW-OK
     sizing = calc(px, atr_pc * px, side, equity, sym)
     if sizing.size <= 0:
         log.info("⏭️  %s sizing zero", sym)
         return
 
-        # ✅ ПРОВЕРКА НА МИНИМАЛЬНЫЙ ЛОТ — ОБЯЗАТЕЛЬНО!
+    # ✅ ПРОВЕРКА НА МИНИМАЛЬНЫЙ ЛОТ — ОБЯЗАТЕЛЬНО!
     try:
         ci = await ex.get_contract_info(sym)
-        min_qty = float(ci["data"][0]["minOrderQty"])   # ← data[0] — список
+        min_qty = float(ci["data"][0]["minQty"])   # ← data[0] — список
         min_nom = min_qty * px
     except Exception as e:
         log.warning("❌ minOrderQty %s: %s", sym, e)
