@@ -15,8 +15,8 @@ class BingXAsync:
                  session: Optional[aiohttp.ClientSession] = None):
         self.key = api_key
         self.sec = secret
-        self.base = "https://open-api.bingx.com"
-        self._external_sess = session  # внешняя сессия (может быть None)
+        self.base = "https://open-api.bingx.com"  # ✅ ИСПРАВЛЕНО — УБРАНЫ ПРОБЕЛЫ!
+        self._external_sess = session
         self.sess: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
