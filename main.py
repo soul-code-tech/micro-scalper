@@ -183,6 +183,21 @@ async def think(ex: BingXAsync, sym: str, equity: float):
 
         log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
                  sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
+                # ---------- РЫНОК vs НАШИ ХАРАКТЕРИСТИКИ ----------
+        tune = CONFIG.TUNE.get(sym, {})
+        our_atr_pc = tune.get("MIN_ATR_PC", CONFIG.MIN_ATR_PC)
+        our_spread = tune.get("MAX_SPREAD", CONFIG.MAX_SPREAD)
+        our_vol = CONFIG.MIN_VOL_USD
+
+        mkt_spread = (float(book["asks"][0][0]) - float(book["bids"][0][0])) / float(book["bids"][0][0])
+        mkt_vol_usd = vol_usd
+        mkt_atr_pc = atr_pc
+
+        log.info("CMP %s atr_pc: %.5f vs %.5f (Δ=%.5f)  spread: %.5f vs %.5f (Δ=%.5f)  vol: %.0f vs %.0f",
+                 sym,
+                 mkt_atr_pc, our_atr_pc, mkt_atr_pc - our_atr_pc,
+                 mkt_spread, our_spread, mkt_spread - our_spread,
+                 mkt_vol_usd, our_vol)
         
         # ➜➜➜ МАЯК – если дошли до сюда, значит все фильтры пройдены
         log.info("FLOW-OK %s  px=%s sizing=%s book_depth_ask=%s book_depth_bid=%s",
