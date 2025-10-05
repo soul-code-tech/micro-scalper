@@ -117,25 +117,26 @@ class BingXAsync:
                                           {"symbol": symbol, "leverage": leverage, "side": side})
 
     
-    async def place_order(self, symbol: str, side: str, order_type: str,
-                          quantity: float, price: Optional[float] = None, time_in_force: str = "PostOnly"):
+    async def place_order(self, symbol: str, position_side: str, order_type: str,
+                          quantity: float, price: Optional[float] = None,
+                          time_in_force: str = "GTC"):
         """
-        side: "LONG" or "SHORT" — как возвращается из micro_score()
-        time_in_force: "PostOnly", "GTC", "IOC", "FOK"
+        position_side: "LONG" / "SHORT" — для positionSide
+        order_type: "LIMIT" / "MARKET"
         """
+        order_side = "BUY" if position_side == "LONG" else "SELL"  # ← перевод в BUY/SELL
         payload = {
             "symbol": symbol,
-            "side": side,                    # ← "LONG" или "SHORT" — ТОЧНО, как ожидает BingX
-            "type": order_type.upper(),      # ← "LIMIT", "MARKET" и т.д.
-            "quantity": f"{quantity:.3f}",   # ← форматируем с 3 знаками
+            "side": order_side,                           # ← BUY / SELL
+            "type": order_type.upper(),
+            "quantity": f"{quantity:.3f}",
             "price": f"{price:.8f}" if price is not None else None,
             "timeInForce": time_in_force,
-            "positionSide": side,            # ← ТОЖЕ "LONG" или "SHORT" — без перевода!
+            "positionSide": position_side,                # ← LONG / SHORT
         }
-        # Убираем None из payload
         payload = {k: v for k, v in payload.items() if v is not None}
         return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
-
+                              
     async def close_position(self, symbol: str, side: str, quantity: float):
         return await self.place_order(symbol, side, "MARKET", quantity, post_only=False)
 
