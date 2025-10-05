@@ -263,8 +263,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             if "leverage already set" not in str(e):
                 log.warning("⚠️  set_leverage %s: %s", sym, e)
         try:
-            ci = await ex.get_contract_info(sym)
-            min_qty = float(ci["data"]["minOrderQty"])
+            # берём минимальный шаг лота из настроек
+            min_qty = CONFIG.LOT_STEP
             min_nom = min_qty * px
         except Exception as e:
             log.warning("❌ minOrderQty %s: %s", sym, e)
