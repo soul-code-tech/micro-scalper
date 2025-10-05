@@ -257,12 +257,12 @@ async def think(ex: BingXAsync, sym: str, equity: float):
              sym, human_float(px), sizing.size)
 
     if sym not in POS and sym not in OPEN_ORDERS:
-    try:
-        await ex.set_leverage(sym, "BUY" if side == "LONG" else "SELL")  # ✅ ПРАВИЛЬНО — 2 аргумента
-    except RuntimeError as e:
-        if "leverage already set" not in str(e):
-            log.warning("⚠️  set_leverage %s: %s", sym, e)
         try:
+            await ex.set_leverage(sym, "BUY" if side == "LONG" else "SELL")  # ✅ ПРАВИЛЬНО — 2 аргумента
+        except RuntimeError as e:
+            if "leverage already set" not in str(e):
+                log.warning("⚠️  set_leverage %s: %s", sym, e)
+         try:
             ci = await ex.get_contract_info(sym)
             min_qty = float(ci["data"]["minOrderQty"])
             min_nom = min_qty * px
