@@ -188,6 +188,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
 
         log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
                  sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
+       
         # ➜➜➜ маяк – до расчёта наших vs рынка
         log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
        
