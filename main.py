@@ -167,6 +167,20 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     if not klines:
         log.info("⏭️ %s %s – klines ПУСТО", sym, tf)
         return
+
+    # ✅ ПРЕОБРАЗУЕМ СЛОВАРИ В СПИСКИ — КАК ОЖИДАЕТСЯ В ЛОГИКЕ
+    if isinstance(klines[0], dict):
+        klines = [
+            [
+                d["time"],
+                d["open"],
+                d["high"],
+                d["low"],
+                d["close"],
+                d["volume"]
+            ] for d in klines
+        ]
+
     last = klines[-1]
     log.info("RAW %s %s  len=%d  last: %s", sym, tf, len(klines), last)
     log.info("THINK-CONTINUE %s – расчёт начат", sym)
