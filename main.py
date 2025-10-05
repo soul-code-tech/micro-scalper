@@ -210,7 +210,17 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     log.info("✅ micro_score() DONE for %s", sym)
 
     atr_pc = score["atr_pc"]
-    px = float(klines[-1][4])  # ← Цена закрытия (без order_book!)
+    # Вместо px = klines[-1][4] (цена закрытия)
+    # Используйте лучшую цену покупки (bid) — но с небольшим отступом
+
+    book = await ex.order_book(sym, 1)
+    best_bid = float(book["bids"][0][0])
+    best_ask = float(book["asks"][0][0])
+
+    if side == "LONG":
+        px = best_bid * 0.9999  # чуть ниже лучшей цены — гарантированно маркет-мейкер
+    elif side == "SHORT":
+        px = best_ask * 1.0001  # чуть выше лучшей цены — гарантированно маркет-мейкер
     vol_usd = float(klines[-1][5]) * px
     side = ("LONG" if score["long"] > score["short"] else
             "SHORT" if score["short"] > score["long"] else None)
@@ -307,7 +317,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             return
 
         position_side = "LONG" if side == "LONG" else "SHORT"
-        order = await ex.place_order(sym, position_side, "LIMIT", sizing.size, px, "PostOnly")
+        order = await ex.place_order(sym, position_side, "LIMIT", sizing.size, px, "GTC")
         if not order:
             log.warning("❌ place_order вернул None для %s", sym)
             return
