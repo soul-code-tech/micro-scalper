@@ -28,6 +28,7 @@ import aiohttp
 import subprocess
 from datetime import datetime, timezone
 from datetime import datetime as dt
+import concurrent.futures  # ✅ ДОБАВЛЕНО
 
 from exchange import BingXAsync
 from strategy import micro_score
@@ -44,6 +45,7 @@ COL = {
     "BLU": "\33[34m", "MAG": "\33[35m", "RST": "\33[0m"
 }
 logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
+
 class ColouredFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         t = dt.fromtimestamp(record.created, tz=timezone.utc).strftime("%H:%M")
@@ -63,6 +65,8 @@ OPEN_ORDERS: dict[str, str] = {}   # symbol -> orderId
 PEAK_BALANCE: float = 0.0
 CYCLE: int = 0
 
+# ✅ ГЛОБАЛЬНЫЙ ИСПОЛНИТЕЛЬ ДЛЯ БЛОКИРУЮЩИХ ФУНКЦИЙ
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
 def human_float(n: float) -> str:
     return f"{n:.5f}".rstrip("0").rstrip(".") if n > 0.01 else f"{n:.7f}"
@@ -167,19 +171,26 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             return
         last = klines[-1]
         log.info("RAW %s %s  len=%d  last: %s", sym, tf, len(klines), last)
-        log.info("THINK-CONTINUE %s – расчёт начат", sym)   # ← добавьте эту
-                   
+        log.info("THINK-CONTINUE %s – расчёт начат", sym)
+
         # если high == low – сразу пишем
         if float(last[2]) == float(last[3]):
             log.info("FLAT %s %s  h=l=%s", sym, tf, last[2])
             return
-        
-        book = await ex.order_book(sym, 5)
-        log.info("✅ ORDER BOOK FETCHED %s", sym)  # ← ДОБАВЬТЕ ЭТО
 
-        log.info("⏳ CALLING micro_score() for %s", sym)  # ← ДОБАВЬТЕ ЭТО
-        score = micro_score(klines, sym, tf)
-        log.info("✅ micro_score() DONE for %s", sym)  # ← ДОБАВЬТЕ ЭТО
+        # ✅ ЗАПРОС СТАКАНА — ПЕРВЫЙ АСИНХРОННЫЙ ВЫЗОВ ПОСЛЕ klines
+        book = await ex.order_book(sym, 5)
+        log.info("✅ ORDER BOOK FETCHED %s", sym)
+
+        # ✅ ВЫЗОВ micro_score() В ThreadPool — БЕЗ БЛОКИРОВКИ ЦИКЛА
+        log.info("⏳ CALLING micro_score() for %s", sym)
+        score = await asyncio.get_event_loop().run_in_executor(
+            _executor,
+            micro_score,
+            klines, sym, tf
+        )
+        log.info("✅ micro_score() DONE for %s", sym)
+
         atr_pc = score["atr_pc"]
         px = float(book["asks"][0][0]) if score["long"] > score["short"] else float(book["bids"][0][0])
         vol_usd = float(klines[-1][5]) * px
@@ -188,9 +199,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
 
         log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
                  sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
-       
-               
-        # ---------- РЫНОК vs НАШИ ХАРАКТЕРИСТИКИ ----------    
+
+        # ---------- РЫНОК vs НАШИ ХАРАКТЕРИСТИКИ ----------
         tune = CONFIG.TUNE.get(sym, {})
         our_atr_pc = tune.get("MIN_ATR_PC", CONFIG.MIN_ATR_PC)
         our_spread = tune.get("MAX_SPREAD", CONFIG.MAX_SPREAD)
@@ -205,13 +215,11 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                  mkt_atr_pc, our_atr_pc, mkt_atr_pc - our_atr_pc,
                  mkt_spread, our_spread, mkt_spread - our_spread,
                  mkt_vol_usd, our_vol)
-        
-        # ➜➜➜ МАЯК – если дошли до сюда, значит все фильтры пройдены
-        log.info("FLOW-OK %s  px=%s sizing=%s book_depth_ask=%s book_depth_bid=%s",
-                 sym, human_float(px), sizing.size if sizing else 0,
-                 book['asks'][0][1] if book else '-',
-                 book['bids'][0][1] if book else '-')
-        
+
+        # ✅ ПРЕДВАРИТЕЛЬНЫЙ МАЯК — ПЕРЕД ПРОВЕРКАМИ
+        log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
+
+        # ✅ ФИЛЬТРЫ — ПОСЛЕ micro_score И order_book
         utc_hour = datetime.now(timezone.utc).hour
         if not (CONFIG.TRADE_HOURS[0] <= utc_hour < CONFIG.TRADE_HOURS[1]):
             log.info("⏭️  %s – вне торгового окна", sym)
@@ -235,21 +243,27 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("⏭️  %s %s only %d bars – skip", sym, tf, len(klines))
             return
 
+        # ✅ ВЫЧИСЛЕНИЕ sizing — ТЕПЕРЬ ОНО ДО FLOW-OK!
         sizing = calc(px, atr_pc * px, side, equity, sym)
         if sizing.size <= 0:
             log.info("⏭️  %s sizing zero", sym)
             return
 
         min_depth = 2 * sizing.size
-        
+
         if not book.get("bids") or not book.get("asks"):
             log.info("⏭️  %s – пустой стакан", sym)
             return
         if float(book["asks"][0][1]) < min_depth or float(book["bids"][0][1]) < min_depth:
             log.info("⏭️  %s – мелкий стакан", sym)
             return
-         # ➜➜➜ маяк – до расчёта наших vs рынка
-        log.info("PRE-CMP %s  side=%s atr=%.5f vol=%.0f$", sym, side, atr_pc, vol_usd)
+
+        # ✅ ФИНАЛЬНЫЙ МАЯК — ВСЁ ПРОЙДЕНО
+        log.info("FLOW-OK %s  px=%s sizing=%s book_depth_ask=%s book_depth_bid=%s",
+                 sym, human_float(px), sizing.size,
+                 book['asks'][0][1] if book else '-',
+                 book['bids'][0][1] if book else '-')
+
         if sym not in POS and sym not in OPEN_ORDERS:
             try:
                 await ex.set_leverage(sym, 50)
@@ -305,11 +319,12 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.debug("❌ %s data fail: %s", sym, e)
         return
 
+
 # ---------- УРОВЕНЬ МОДУЛЯ ----------
 async def download_weights_once():
     repo = os.getenv("GITHUB_REPOSITORY", "soul-code-tech/micro-scalper")
     os.makedirs("weights", exist_ok=True)
-    # убираем лишний префикс и пробел
+    # ИСПРАВЛЕНО: УБРАН ЛИШНИЙ ПРОБЕЛ В URL
     subprocess.run([
         "git", "clone", "--branch", "weights", "--single-branch",
         f"https://github.com/{repo}.git", "weights_tmp"
@@ -317,6 +332,7 @@ async def download_weights_once():
     subprocess.run("cp -r weights_tmp/*.pkl weights/ 2>/dev/null || true", shell=True)
     subprocess.run("rm -rf weights_tmp", shell=True)
     print("✅ Веса подтянуты из ветки weights")
+
 
 async def trade_loop(ex: BingXAsync):
     global PEAK_BALANCE, CYCLE
@@ -375,7 +391,7 @@ async def trade_loop(ex: BingXAsync):
             await think(ex, sym, equity)
 
         await asyncio.sleep(2)
-        
+
 
 async def main():
     asyncio.create_task(start_health())
