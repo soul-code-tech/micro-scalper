@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import time
 import logging
+import asyncio  # ← ДОБАВЛЕНО!
 from typing import Dict
 from strategy import micro_score
 from exchange import BingXAsync
@@ -10,7 +10,7 @@ log = logging.getLogger("tf_selector")
 CACHE: Dict[str, tuple] = {}   # symbol -> (tf, expire_ts)
 
 async def best_timeframe(ex: BingXAsync, sym: str) -> str:
-    now = time.time()
+    now = asyncio.get_event_loop().time()  # ✅ ИСПРАВЛЕНО: АСИНХРОННАЯ ВЕРСИЯ
     cached = CACHE.get(sym)
     if cached and cached[1] > now:
         return cached[0]
@@ -30,6 +30,6 @@ async def best_timeframe(ex: BingXAsync, sym: str) -> str:
         log.warning("⚠️  %s no signals", sym)
         return "5m"  # fallback
 
-    best = max(signals, key=signals.get)  # больше сигналов → лучше
+    best = max(signals, key=signals.get)
     CACHE[sym] = (best, now + 240 * 60)  # кэш на 4 часа
     return best
