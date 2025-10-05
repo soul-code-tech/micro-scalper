@@ -121,6 +121,7 @@ class BingXAsync:
                           quantity: float, price: Optional[float] = None, time_in_force: str = "PostOnly"):
         """
         side: "LONG" or "SHORT" — как возвращается из micro_score()
+        time_in_force: "PostOnly", "GTC", "IOC", "FOK"
         """
         payload = {
             "symbol": symbol,
