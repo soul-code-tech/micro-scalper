@@ -174,9 +174,12 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("FLAT %s %s  h=l=%s", sym, tf, last[2])
             return
         
-        book = await ex.order_book(sym, 5)    
+        book = await ex.order_book(sym, 5)
+        log.info("✅ ORDER BOOK FETCHED %s", sym)  # ← ДОБАВЬТЕ ЭТО
 
+        log.info("⏳ CALLING micro_score() for %s", sym)  # ← ДОБАВЬТЕ ЭТО
         score = micro_score(klines, sym, tf)
+        log.info("✅ micro_score() DONE for %s", sym)  # ← ДОБАВЬТЕ ЭТО
         atr_pc = score["atr_pc"]
         px = float(book["asks"][0][0]) if score["long"] > score["short"] else float(book["bids"][0][0])
         vol_usd = float(klines[-1][5]) * px
