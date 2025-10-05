@@ -56,7 +56,7 @@ def calc(entry: float, atr: float, side: str, equity: float, sym: str,
     # после строки size = min(kelly_coin, max_risk_coin)
 
     # минимальный шаг лота (пример, берём из настроек или 0.001)
-    lot_step = CONFIG.get("LOT_STEP", 0.001)
+    lot_step = getattr(CONFIG, "LOT_STEP", 0.001)
     size = round(size / lot_step) * lot_step
     size = max(size, lot_step)        # не меньше минимального       
 
