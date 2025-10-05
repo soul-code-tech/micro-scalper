@@ -11,21 +11,37 @@ import joblib
 N_LAG = 5
 MODEL_DIR = "weights"
 
+# 🚀 КЭШ МОДЕЛЕЙ — ДОБАВЛЯЕМ!
+_MODEL_CACHE = {}
+
 def model_path(sym: str, tf: str) -> str:
     return f"{MODEL_DIR}/{sym.replace('-','')}_{tf}.pkl"
 
 def load_model(sym: str, tf: str):
+    key = (sym, tf)
+    if key in _MODEL_CACHE:
+        return _MODEL_CACHE[key]
+
     p = model_path(sym, tf)
     if not os.path.exists(p):
+        _MODEL_CACHE[key] = (None, None, 0.55)
         return None, None, 0.55
-    with open(p, "rb") as f:
-        obj = pickle.load(f)
-    return obj["scaler"], obj["clf"], obj["thr"]
+
+    try:
+        with open(p, "rb") as f:
+            obj = pickle.load(f)
+        _MODEL_CACHE[key] = (obj["scaler"], obj["clf"], obj["thr"])
+        return obj["scaler"], obj["clf"], obj["thr"]
+    except Exception as e:
+        print(f"[ERR] Failed to load model {p}: {e}")
+        _MODEL_CACHE[key] = (None, None, 0.55)
+        return None, None, 0.55
 
 def save_model(sym, tf, scaler, clf, thr):
     os.makedirs(MODEL_DIR, exist_ok=True)
     with open(model_path(sym, tf), "wb") as f:
         pickle.dump({"scaler": scaler, "clf": clf, "thr": thr}, f)
+
 def rsi(series: pd.Series, period: int = 14) -> float:
     delta = series.diff()
     gain = delta.where(delta > 0, 0).rolling(period).mean()
