@@ -81,6 +81,12 @@ class BingXAsync:
             return []
 
     async def order_book(self, symbol: str, limit: int = 5):
+        # ✅ ВАЛИДАЦИЯ limit — только разрешённые значения
+        VALID_LIMITS = {5, 10, 20, 50, 100, 500, 1000}
+        if limit not in VALID_LIMITS:
+            log.warning("⚠️  Invalid order_book limit=%d for %s — using 5", limit, symbol)
+            limit = 5
+
         try:
             data = await self._public_get("/openApi/swap/v2/quote/depth",
                                           {"symbol": symbol, "limit": limit})
