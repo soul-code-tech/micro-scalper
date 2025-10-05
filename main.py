@@ -167,6 +167,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             return
         last = klines[-1]
         log.info("RAW %s %s  len=%d  last: %s", sym, tf, len(klines), last)
+        log.info("THINK-CONTINUE %s – расчёт начат", sym)   # ← добавьте эту
         # если high == low – сразу пишем
         if float(last[2]) == float(last[3]):
             log.info("FLAT %s %s  h=l=%s", sym, tf, last[2])
