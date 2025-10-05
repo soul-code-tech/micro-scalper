@@ -106,10 +106,10 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
 
     if scaler is None or clf is None:
         rsi_now = rsi(df["c"], 14)
-        if rsi_now < 30:
+        if rsi_now < 40:
             long_raw, short_raw = 1.0, 0.0
             print(f"[DBG] {sym}  fallback RSI rule → OVERSOLD → LONG")
-        elif rsi_now > 70:
+        elif rsi_now > 60:
             long_raw, short_raw = 0.0, 1.0
             print(f"[DBG] {sym}  fallback RSI rule → OVERBOUGHT → SHORT")
         else:
