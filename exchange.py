@@ -127,16 +127,15 @@ class BingXAsync:
         }
         return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
 
-    async def place_stop_order(self, symbol: str, side: str, qty: float,
-                               stop_px: float, order_type: str = "STOP_MARKET") -> dict:
+    async def place_order(self, symbol, side, type, quantity, price, time_in_force="GTC"):
         payload = {
-            "symbol": symbol,
-            "side": side.upper(),
-            "type": order_type,
-            "quantity": f"{qty:.3f}",
-            "stopPrice": f"{stop_px:.8f}",
-            "positionSide": "BOTH",
-            "timeInForce": "GTC",
+            "symbol": symbol,                 # ← без replace
+            "side": side,
+            "type": type,
+            "quantity": str(quantity),
+            "price": f"{price:.8f}",
+            "timeInForce": time_in_force,
+            "positionSide": "BOTH",           # ← добавлено
         }
         return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
 
