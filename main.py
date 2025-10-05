@@ -22,13 +22,12 @@ import sys
 import signal
 import asyncio
 import logging
-import time
 import traceback
 import aiohttp
 import subprocess
 from datetime import datetime, timezone
 from datetime import datetime as dt
-import concurrent.futures  # ✅ ДОБАВЛЕНО
+import concurrent.futures
 
 from exchange import BingXAsync
 from strategy import micro_score
@@ -36,7 +35,6 @@ from risk import calc, max_drawdown_stop
 from store import cache
 from settings import CONFIG
 from tf_selector import best_timeframe
-from news_filter import is_news_time
 from health_aio import start_health
 
 print("=== DEBUG: импорты завершены ===")
@@ -139,6 +137,7 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
         return
 
 
+# ---------- проверка спреда ----------
 async def guard(px: float, side: str, book: dict, sym: str) -> bool:
     bid, ask = float(book["bids"][0][0]), float(book["asks"][0][0])
     spread = (ask - bid) / bid
@@ -148,6 +147,7 @@ async def guard(px: float, side: str, book: dict, sym: str) -> bool:
     return True
 
 
+# ---------- логика торговли ----------
 async def think(ex: BingXAsync, sym: str, equity: float):
     if OPEN_ORDERS.get(sym):
         try:
@@ -175,7 +175,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("FLAT %s %s  h=l=%s", sym, tf, last[2])
         return
 
-    # ✅ ВОТ ЭТО ИСПРАВЛЕНИЕ — ОБЁРНУЛИ В ThreadPoolExecutor!
+    # ✅ Вызываем micro_score в отдельном потоке
     log.info("⏳ CALLING micro_score() for %s", sym)
     score = await asyncio.get_event_loop().run_in_executor(
         _executor,
@@ -185,7 +185,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     log.info("✅ micro_score() DONE for %s", sym)
 
     atr_pc = score["atr_pc"]
-    px = float(klines[-1][4])  # ← Цена закрытия
+    px = float(klines[-1][4])  # ← Цена закрытия (без order_book!)
     vol_usd = float(klines[-1][5]) * px
     side = ("LONG" if score["long"] > score["short"] else
             "SHORT" if score["short"] > score["long"] else None)
@@ -249,53 +249,51 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             if "leverage already set" not in str(e):
                 log.warning("⚠️  set_leverage %s: %s", sym, e)
 
-    try:
-        ci = await ex.get_contract_info(sym)
-        min_qty = float(ci["data"]["minOrderQty"])
-        min_nom = min_qty * px
-    except Exception as e:
-        log.warning("❌ minOrderQty %s: %s", sym, e)
-        return
-
-    if sizing.size * px < min_nom:
-        log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
-        return
-
-    bingx_side = "BUY" if side == "LONG" else "SELL"
-    order = await ex.place_order(sym, bingx_side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
-    log.info("PLACE-RESP %s %s", sym, order)
-    if order and order.get("code") == 0:
-        oid = order["data"]["orderId"]
-        POS[sym] = dict(
-            side=side,
-            qty=sizing.size,
-            entry=px,
-            sl=sizing.sl_px,
-            sl_orig=sizing.sl_px,
-            tp=sizing.tp_px,
-            part=sizing.partial_qty,
-            oid=oid,
-            atr=atr_pc * px,
-            breakeven_done=False,
-        )
-        log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
-                 sym, side, sizing.size, human_float(px),
-                 human_float(sizing.sl_px), human_float(sizing.tp_px))
-        sl_side = "SELL" if side == "LONG" else "BUY"
-        tp_side = "SELL" if side == "LONG" else "BUY"
-
         try:
-            sl_order = await ex.place_stop_order(sym, sl_side, sizing.size, sizing.sl_px, "STOP_MARKET")
-            tp_order = await ex.place_stop_order(sym, tp_side, sizing.size, sizing.tp_px, "TAKE_PROFIT_MARKET")
-            POS[sym]["sl_order_id"] = sl_order["data"]["orderId"]
-            POS[sym]["tp_order_id"] = tp_order["data"]["orderId"]
-            log.info("🔒 %s SL=%s TP=%s (ордера на бирже)", sym, human_float(sizing.sl_px), human_float(sizing.tp_px))
+            ci = await ex.get_contract_info(sym)
+            min_qty = float(ci["data"]["minOrderQty"])
+            min_nom = min_qty * px
         except Exception as e:
-            log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
-
-        except Exception as e:
-            log.debug("❌ %s data fail: %s", sym, e)
+            log.warning("❌ minOrderQty %s: %s", sym, e)
             return
+
+        if sizing.size * px < min_nom:
+            log.info("⏭️  %s nominal %.2f < %.2f – пропуск", sym, sizing.size * px, min_nom)
+            return
+
+        bingx_side = "BUY" if side == "LONG" else "SELL"
+        order = await ex.place_order(sym, bingx_side, "LIMIT", sizing.size, px, CONFIG.POST_ONLY)
+        log.info("PLACE-RESP %s %s", sym, order)
+
+        if order and order.get("code") == 0:
+            oid = order["data"]["orderId"]
+            POS[sym] = dict(
+                side=side,
+                qty=sizing.size,
+                entry=px,
+                sl=sizing.sl_px,
+                sl_orig=sizing.sl_px,
+                tp=sizing.tp_px,
+                part=sizing.partial_qty,
+                oid=oid,
+                atr=atr_pc * px,
+                breakeven_done=False,
+            )
+            log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
+                     sym, side, sizing.size, human_float(px),
+                     human_float(sizing.sl_px), human_float(sizing.tp_px))
+
+            sl_side = "SELL" if side == "LONG" else "BUY"
+            tp_side = "SELL" if side == "LONG" else "BUY"
+
+            try:
+                sl_order = await ex.place_stop_order(sym, sl_side, sizing.size, sizing.sl_px, "STOP_MARKET")
+                tp_order = await ex.place_stop_order(sym, tp_side, sizing.size, sizing.tp_px, "TAKE_PROFIT_MARKET")
+                POS[sym]["sl_order_id"] = sl_order["data"]["orderId"]
+                POS[sym]["tp_order_id"] = tp_order["data"]["orderId"]
+                log.info("🔒 %s SL=%s TP=%s (ордера на бирже)", sym, human_float(sizing.sl_px), human_float(sizing.tp_px))
+            except Exception as e:
+                log.warning("❌ не смог выставить SL/TP %s: %s", sym, e)
 
 
 # ---------- УРОВЕНЬ МОДУЛЯ ----------
