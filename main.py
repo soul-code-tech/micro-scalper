@@ -150,7 +150,14 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
 
 # ---------- проверка спреда ----------
 async def guard(px: float, side: str, book: dict, sym: str) -> bool:
-    bid, ask = float(book["bids"][0][0]), float(book["asks"][0][0])
+    bids = book.get("bids", [])
+    asks = book.get("asks", [])
+
+    if not bids or not asks:
+        log.info("⏭️  %s empty order book — skipping spread check", sym)
+        return True
+
+    bid, ask = float(bids[0][0]), float(asks[0][0])
     spread = (ask - bid) / bid
     if spread > CONFIG.MAX_SPREAD:
         log.info("⏭️  %s wide spread %.4f", sym, spread)
