@@ -105,12 +105,17 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
     # --------------------------------------
 
     if scaler is None or clf is None:
-        rsi_now = rsi(df["c"], 14)
-        long_raw  = float(rsi_now < 70)
-        short_raw = float(rsi_now > 30)
-        print(f"[DBG] {sym}  fallback RSI rule  long={long_raw}  short={short_raw}")
-        return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
-
+    rsi_now = rsi(df["c"], 14)
+    if rsi_now < 30:
+        long_raw, short_raw = 1.0, 0.0
+        print(f"[DBG] {sym}  fallback RSI rule → OVERSOLD → LONG")
+    elif rsi_now > 70:
+        long_raw, short_raw = 0.0, 1.0
+        print(f"[DBG] {sym}  fallback RSI rule → OVERBOUGHT → SHORT")
+    else:
+        long_raw, short_raw = 0.0, 0.0
+        print(f"[DBG] {sym}  fallback RSI rule → NEUTRAL (30–70) → NO SIDE")
+    return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
     X = scaler.transform(feat.values.reshape(1, -1))
     prob = float(clf.predict_proba(X)[0, 1])
 
