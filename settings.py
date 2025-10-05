@@ -7,7 +7,7 @@ class ScalperConfig:
     SYMBOLS: Tuple[str, ...] = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT")
     TIME_FRAMES: Tuple[str, ...] = ("3m", "5m",)
     MAX_BALANCE_PC: float = 0.01          # 1 % от баланса
-    MIN_NOTIONAL_FALLBACK: float = 45.0   # USD, если биржа не дала
+    MIN_NOTIONAL_FALLBACK: float = 500   # USD, если биржа не дала
     MAX_POS: int = 3
     RISK_PER_TRADE: float = 0.15
     KELLY_F: float = 0.15
