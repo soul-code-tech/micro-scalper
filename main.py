@@ -306,8 +306,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             oid = order_data.get("orderId")
             if not oid:
                 log.warning("❌ Не найден orderId в ответе: %s", order_data)
-                return
-
+                
+        else:
             POS[sym] = dict(
                 side=side,
                 qty=sizing.size,
