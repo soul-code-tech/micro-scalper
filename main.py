@@ -276,6 +276,11 @@ async def trade_loop(ex: BingXAsync):
 
     while True:
         CYCLE += 1
+        
+        # 10-минутный пульс
+        if CYCLE % 30 == 0:
+            log.info("💓 ALIVE  cycle=%d  POS=%d  EQ=%.2f$  peak=%.2f$",
+                     CYCLE, len(POS), equity, PEAK_BALANCE)
         try:
             equity = await ex.balance()
         except Exception as e:
