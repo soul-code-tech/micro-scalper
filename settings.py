@@ -6,17 +6,17 @@ import os
 class ScalperConfig:
     SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "XRP-USDT", "BNB-USDT")
     TIME_FRAMES: Tuple[str, ...] = ("5m",)
-    MAX_POS: int = 3
-    RISK_PER_TRADE: float = 0.15
-    KELLY_F: float = 0.15
+    MAX_POS: int = 2
+    RISK_PER_TRADE: float = 1
+    KELLY_F: float = 0.25
     MAX_DD_STOP: float = 5.0
-    ATR_MULT_SL: float = 0.7
-    TP1_MULT: float = 1.4
-    TRAIL_MULT: float = 0.8
+    ATR_MULT_SL: float = 0.8
+    TP1_MULT: float = 1.2
+    TRAIL_MULT: float = 0.7
     RR: float = 2.0
-    MIN_ATR_PC: float = 0.00010
-    MAX_SPREAD: float = 0.0010
-    MIN_VOL_USD: int = 30_000
+    MIN_ATR_PC: float = 0.00015
+    MAX_SPREAD: float = 0.0005
+    MIN_VOL_USD: int = 500_000
     ORDER_TO: int = 8
     HEALTH_PORT: int = field(default_factory=lambda: int(os.getenv("PORT", "10000")))
     TRADE_HOURS: Tuple[int, int] = (0, 24)
@@ -28,7 +28,7 @@ class ScalperConfig:
     })
     LOT_STEP: float = 0.001
     LEVERAGE: int = 10
-    MIN_NOTIONAL_FALLBACK: float = 25.0
+    MIN_NOTIONAL_FALLBACK: float = 45.0
 
 CONFIG = ScalperConfig()
 
