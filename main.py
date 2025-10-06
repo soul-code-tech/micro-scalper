@@ -1,21 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Quantum-Scalper 1-15m auto-TF
-- async BingX
-- Kelly + ATR risk
-- max-drawdown-stop 5 %
-- trailing-stop 0.8×ATR
-- quick TP1 60 % at 1.2×ATR
-- trail40 remaining at 0.8×ATR
-- breakeven + partial 1R
-- auto timeframe 1m-15m
-- log-reg signal (expectancy)
-- фильтр времени 8-17 UTC
-- скачивание весов при старте
-- контроль висящих ордеров
-"""
-
 import os
 import sys
 import asyncio
