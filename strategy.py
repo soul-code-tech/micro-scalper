@@ -90,7 +90,7 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
 
     df = pd.DataFrame(klines, columns=["t", "o", "h", "l", "c", "v"]).astype(float)
 
-    # 3. ATR(14) в процентах от цены закрытия
+    # ATR(14) в процентах от цены закрытия
     atr14 = atr(df, 14)
     atr_pc = float(atr14 / (df["c"].iloc[-1] + 1e-8))
     print(f"[DBG] {sym} {tf}  atr14={atr14:.8f}  close={df['c'].iloc[-1]:.5f}  atr_pc={atr_pc:.5f}")
@@ -104,6 +104,7 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
     print(f"[DBG] {sym} {tf}  atr_pc={atr_pc:.5f}  thr={thr:.3f}  model={clf is not None}")
     # --------------------------------------
 
+    # Fallback — RSI правило
     if scaler is None or clf is None:
         rsi_now = rsi(df["c"], 14)
         if rsi_now < 40:
@@ -115,16 +116,27 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
         else:
             long_raw, short_raw = 0.0, 0.0
             print(f"[DBG] {sym}  fallback RSI rule → NEUTRAL (30–70) → NO SIDE")
-            
+
+        # ✅ ФИЛЬТР ТРЕНДА: EMA200
+        ema200 = df["c"].ewm(span=200).mean().iloc[-1]
+        current_price = df["c"].iloc[-1]
+
+        if current_price < ema200:
+            long_raw = 0.0
+        if current_price > ema200:
+            short_raw = 0.0
+
+        print(f"[DBG] {sym} trend filter applied | price={current_price:.4f}, EMA200={ema200:.4f} | long={long_raw}, short={short_raw}")
         return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
-   
+
+    # Если модель есть
     X = scaler.transform(feat.values.reshape(1, -1))
     prob = float(clf.predict_proba(X)[0, 1])
 
-    long_raw  = float(prob > thr)
+    long_raw = float(prob > thr)
     short_raw = float(prob < 1 - thr)
-    
-    # ✅ ФИЛЬТР ТРЕНДА: ОТСЕКАЕМ КОНТРТРЕНДНЫЕ СИГНАЛЫ
+
+    # ✅ ФИЛЬТР ТРЕНДА: ОТКЛЮЧАЕМ КОНТРТРЕНД
     ema200 = df["c"].ewm(span=200).mean().iloc[-1]
     current_price = df["c"].iloc[-1]
 
@@ -135,10 +147,6 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
 
     print(f"[DBG] {sym}  prob={prob:.3f}  long={long_raw}  short={short_raw}")
     return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
-    
-    print(f"[DBG] {sym}  prob={prob:.3f}  long={long_raw}  short={short_raw}")
-    return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
-
 async def train_one(sym: str, tf: str, bars: int = 1440):
     from exchange import BingXAsync
     async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
