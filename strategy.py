@@ -115,6 +115,7 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
         else:
             long_raw, short_raw = 0.0, 0.0
             print(f"[DBG] {sym}  fallback RSI rule → NEUTRAL (30–70) → NO SIDE")
+            
         return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
    
     X = scaler.transform(feat.values.reshape(1, -1))
@@ -122,7 +123,19 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
 
     long_raw  = float(prob > thr)
     short_raw = float(prob < 1 - thr)
+    
+    # ✅ ФИЛЬТР ТРЕНДА: ОТСЕКАЕМ КОНТРТРЕНДНЫЕ СИГНАЛЫ
+    ema200 = df["c"].ewm(span=200).mean().iloc[-1]
+    current_price = df["c"].iloc[-1]
 
+    if current_price < ema200:
+        long_raw = 0.0
+    if current_price > ema200:
+        short_raw = 0.0
+
+    print(f"[DBG] {sym}  prob={prob:.3f}  long={long_raw}  short={short_raw}")
+    return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
+    
     print(f"[DBG] {sym}  prob={prob:.3f}  long={long_raw}  short={short_raw}")
     return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
 
