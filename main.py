@@ -1,3 +1,21 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Quantum-Scalper 1-15m auto-TF
+- async BingX
+- Kelly 0.25×
+- max-drawdown-stop 5 %
+- trailing-stop 0.8×ATR (в памяти)
+- quick TP1 60 % at 1.2×ATR
+- trail40 remaining at 0.8×ATR
+- breakeven + partial 1R
+- auto timeframe 1m-15m
+- log-reg signal (expectancy)
+- фильтр времени 8-17 UTC
+- скачивание весов при старте
+- контроль висящих ордеров
+"""
+
 import os
 import sys
 import asyncio
@@ -59,7 +77,7 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
     mark = float(api_pos["markPrice"])
     side = pos["side"]
 
-    # --- TP1: 60% при достижении 1.2×ATR ---
+    # --- TP1: 60% при достижении 1.4×ATR ---
     if not pos.get("tp1_done"):
         risk_dist = abs(pos["entry"] - pos["sl_orig"])
         tp1_px = pos["entry"] + risk_dist * CONFIG.TP1_MULT if side == "LONG" else pos["entry"] - risk_dist * CONFIG.TP1_MULT
@@ -181,29 +199,27 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     # ✅ Минимальный номинал с API
     try:
         ci = await ex.get_contract_info(sym)
-        min_nom_str = ci["data"][0].get("minNotional")
-        if not min_nom_str:
+        min_notional_str = ci["data"][0].get("minNotional")
+        if not min_notional_str:
             raise ValueError("minNotional missing")
-        min_nom = float(min_nom_str)
+        min_nom = float(min_notional_str)
     except Exception as e:
         log.warning("⚠️  %s minNotional error: %s — использую fallback", sym, e)
-    
-    # ✅ Устанавливаем fallback НА ОДИН РАЗ
-    if sym in ("DOGE-USDT", "XRP-USDT", "BNB-USDT"):
-        min_nom = CONFIG.MIN_NOTIONAL_FALLBACK * 0.5  # например, $25
-    else:
-        min_nom = CONFIG.MIN_NOTIONAL_FALLBACK         # например, $500
+        min_nom = CONFIG.MIN_NOTIONAL_FALLBACK
 
-    # ✅ Максимум 90% от баланса × плечо
-    max_nom = equity * 0.9 * CONFIG.LEVERAGE
-    if min_nom > max_nom:
-        log.info("⏭️  %s min_nom (%.2f) > max_nom (%.2f) — пропуск", sym, min_nom, max_nom)
+    # ✅ Для дешёвых монет — снижаем порог
+    if sym in ("DOGE-USDT", "XRP-USDT", "LTC-USDT", "SUI-USDT"):
+        min_nom = min(CONFIG.MIN_NOTIONAL_FALLBACK * 0.5, min_nom)
+
+    # ✅ Максимум: 90% × leverage
+    max_nominal = equity * 0.9 * CONFIG.LEVERAGE
+    if min_nom > max_nominal:
+        log.info("⏭️  %s min_nom (%.2f) > max_nom (%.2f) — пропуск", sym, min_nom, max_nominal)
         return
 
-    # ✅ Финальный лимит
-    min_nom = min(min_nom, max_nom)
+    min_nom = min(min_nom, max_nominal)
 
-    # ✅ Подтягиваем до минимума
+    # ✅ Подтягиваем размер до минимума
     if sizing.size * px < min_nom:
         new_size = min_nom / px
         log.info("⚠️  %s nominal %.2f < %.2f USD — увеличиваю до %.6f (%.2f USD)",
@@ -215,7 +231,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             partial_qty=new_size * CONFIG.PARTIAL_TP
         )
 
-    # ✅ FLOW-OK — ВСЁ ОК
+    # ✅ FLOW-OK — все условия пройдены
     log.info("FLOW-OK %s  px=%s sizing=%s book_depth_ask=- book_depth_bid=-",
              sym, human_float(px), sizing.size)
 
@@ -234,9 +250,13 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("PLACE-RESP %s %s", sym, order)
 
         if order.get("code") == 0:
-            oid = order["data"]["order"].get("orderId") or order["data"]["order"].get("orderID")
+            order_data = order["data"].get("order")
+            if not order_data:
+                log.warning("❌ Нет данных 'order' в ответе: %s", order)
+                return
+            oid = order_data.get("orderId")
             if not oid:
-                log.warning("❌ Не удалось получить orderId — пропускаем")
+                log.warning("❌ Не найден orderId: %s", order_data)
                 return
 
             POS[sym] = dict(
@@ -276,11 +296,6 @@ async def trade_loop(ex: BingXAsync):
 
     while True:
         CYCLE += 1
-        
-        # 10-минутный пульс
-        if CYCLE % 30 == 0:
-            log.info("💓 ALIVE  cycle=%d  POS=%d  EQ=%.2f$  peak=%.2f$",
-                     CYCLE, len(POS), equity, PEAK_BALANCE)
         try:
             equity = await ex.balance()
         except Exception as e:
