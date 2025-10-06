@@ -144,7 +144,7 @@ class BingXAsync:
         return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
                               
     async def close_position(self, symbol: str, side: str, quantity: float):
-        return await self.place_order(symbol, side, "MARKET", quantity, post_only=False)
+        return await self.place_order(symbol, side, "MARKET", quantity, "GTC")
 
     async def fetch_positions(self):
         return await self._signed_request("GET", "/openApi/swap/v2/user/positions")
