@@ -4,31 +4,31 @@ import os
 
 @dataclass(slots=True)
 class ScalperConfig:
-    SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "XRP-USDT", "BNB-USDT", "LTC-USDT", "SUI-USDT")
+    SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "XRP-USDT", "LTC-USDT", "SUI-USDT")
     TIME_FRAMES: Tuple[str, ...] = ("5m",)
-    MAX_POS: int = 5
-    RISK_PER_TRADE: float = 70.0
-    KELLY_F: float = 0.25
-    MAX_DD_STOP: float = 5.0
-    ATR_MULT_SL: float = 0.8
-    TP1_MULT: float = 1.2
+    MAX_POS: int = 3
+    RISK_PER_TRADE: float = 80.0
+    KELLY_F: float = 0.15
+    MAX_DD_STOP: float = 3.0
+    ATR_MULT_SL: float = 0.7
+    TP1_MULT: float = 1.4
     TRAIL_MULT: float = 0.7
     RR: float = 2.0
     MIN_ATR_PC: float = 0.00015
-    MAX_SPREAD: float = 0.0005
-    MIN_VOL_USD: int = 500_000
+    MAX_SPREAD: float = 0.0010
+    MIN_VOL_USD: int = 30_000
     ORDER_TO: int = 8
     HEALTH_PORT: int = field(default_factory=lambda: int(os.getenv("PORT", "10000")))
     TRADE_HOURS: Tuple[int, int] = (0, 24)
     PARTIAL_TP: float = 0.6
     TUNE: Dict[str, Dict[str, float]] = field(default_factory=lambda: {
-        **{s: {"MIN_ATR_PC": 0.00006, "MAX_SPREAD": 0.00015} for s in ("LTC-USDT", "SUI-USDT")},
+        **{s: {"MIN_ATR_PC": 0.00015, "MAX_SPREAD": 0.00060} for s in ("LTC-USDT", "SUI-USDT")},
         **{s: {"MIN_ATR_PC": 0.00012, "MAX_SPREAD": 0.00035} for s in ("SOL-USDT", "BNB-USDT")},
         **{s: {"MIN_ATR_PC": 0.00015, "MAX_SPREAD": 0.00060} for s in ("DOGE-USDT", "XRP-USDT")},
     })
     LOT_STEP: float = 0.001
     LEVERAGE: int = 20
-    MIN_NOTIONAL_FALLBACK: float = 5.0
+    MIN_NOTIONAL_FALLBACK: float = 46.0
 
 CONFIG = ScalperConfig()
 
