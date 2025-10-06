@@ -296,18 +296,18 @@ async def trade_loop(ex: BingXAsync):
 
     while True:
         CYCLE += 1
+        
+        # ✅ Защита от silent crash
         try:
             equity = await ex.balance()
         except Exception as e:
-            log.error("Balance fetch: %s\n%s", e, traceback.format_exc())
+            log.error("💥 SILENT CRASH: %s\n%s", e, traceback.format_exc())
             await asyncio.sleep(5)
             continue
 
-        # Обновляем пиковый баланс
         if equity > PEAK_BALANCE or PEAK_BALANCE == 0:
             PEAK_BALANCE = equity
 
-        # Max drawdown stop
         if max_drawdown_stop(equity, PEAK_BALANCE):
             if CYCLE % 15 == 0:
                 dd = (PEAK_BALANCE - equity) / PEAK_BALANCE * 100
@@ -315,11 +315,14 @@ async def trade_loop(ex: BingXAsync):
             await asyncio.sleep(1)
             continue
 
-        # Логируем баланс
         prev_eq = cache.get("prev_eq", 0.0)
         if abs(equity - prev_eq) > 0.01:
             log.info("💰 Equity %.2f $ (peak %.2f $)", equity, PEAK_BALANCE)
             cache.set("prev_eq", equity)
+
+        # ✅ Каждые 10 циклов — метка жизни
+        if CYCLE % 10 == 0:
+            log.info("💓 ALIVE  cycle=%d  POS=%d  EQ=%.2f$", CYCLE, len(POS), equity)
 
         # Сводка каждые 15 циклов (~5 минут)
         if CYCLE % 15 == 0:
@@ -334,12 +337,10 @@ async def trade_loop(ex: BingXAsync):
             await asyncio.sleep(5)
             continue
 
-        # Управление текущими позициями
         for sym, p in api_pos.items():
             if float(p["positionAmt"]) != 0:
                 await manage(ex, sym, p)
 
-        # Новые сделки
         for sym in CONFIG.SYMBOLS:
             if sym in api_pos:
                 continue
