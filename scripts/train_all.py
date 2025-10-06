@@ -26,9 +26,9 @@ def feat_vector(klines: list) -> pd.Series:
     out = pd.Series([atr_pc, rsi_val, (c.iloc[-1] - ema9) / ema9, vol_ratio])
     return out.replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
-SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT"]
+SYMBOLS = ["DOGE-USDT", "XRP-USDT", "BNB-USDT", "LTC-USDT", "SUI-USDT"]
 BARS = 1440
-TIME_FRAMES = ["1m", "3m", "5m", "15m"]   # обучаем на всех ТФ
+TIME_FRAMES = [ "5m", "15m"]   # обучаем на всех ТФ
 
 def rsi(series: pd.Series, period: int = 14) -> float:
     delta = series.diff()
