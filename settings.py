@@ -7,7 +7,7 @@ class ScalperConfig:
     SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "XRP-USDT", "LTC-USDT", "SUI-USDT")
     TIME_FRAMES: Tuple[str, ...] = ("5m",)
     MAX_POS: int = 3
-    RISK_PER_TRADE: float = 10.0
+    RISK_PER_TRADE: float = 5.0
     KELLY_F: float = 0.15
     MAX_DD_STOP: float = 3.0
     ATR_MULT_SL: float = 0.7
