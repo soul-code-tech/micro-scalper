@@ -110,7 +110,7 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
         if rsi_now < 45:
             long_raw, short_raw = 1.0, 0.0
             print(f"[DBG] {sym}  fallback RSI rule → OVERSOLD → LONG")
-        elif rsi_now > 55:
+        elif rsi_now > 65:
             long_raw, short_raw = 0.0, 1.0
             print(f"[DBG] {sym}  fallback RSI rule → OVERBOUGHT → SHORT")
         else:
