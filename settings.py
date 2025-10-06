@@ -9,7 +9,7 @@ class ScalperConfig:
     MAX_POS: int = 3
     RISK_PER_TRADE: float = 5.0
     KELLY_F: float = 0.15
-    MAX_DD_STOP: float = 3.0
+    MAX_DD_STOP: float = 10.0
     ATR_MULT_SL: float = 0.7
     TP1_MULT: float = 1.4
     TRAIL_MULT: float = 0.7
