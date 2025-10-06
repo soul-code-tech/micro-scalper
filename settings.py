@@ -6,7 +6,7 @@ import os
 class ScalperConfig:
     SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "XRP-USDT", "LTC-USDT", "SUI-USDT")
     TIME_FRAMES: Tuple[str, ...] = ("5m")
-    MAX_POS: int = 3
+    MAX_POS: int = 2
     RISK_PER_TRADE: float = 5.0
     KELLY_F: float = 0.15
     MAX_DD_STOP: float = 10.0
@@ -27,7 +27,7 @@ class ScalperConfig:
         **{s: {"MIN_ATR_PC": 0.00015, "MAX_SPREAD": 0.00060} for s in ("DOGE-USDT", "XRP-USDT")},
     })
     LOT_STEP: float = 0.001
-    LEVERAGE: int = 20
+    LEVERAGE: int = 10
     MIN_NOTIONAL_FALLBACK: float = 46.0
 
 CONFIG = ScalperConfig()
