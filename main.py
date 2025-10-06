@@ -297,6 +297,19 @@ async def trade_loop(ex: BingXAsync):
     while True:
         CYCLE += 1
         
+        # ---------- ручной сброс позиций, если биржа показывает 0 ----------
+        try:
+            api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
+            # чистим свою память, если на бирже пусто
+            for sym in list(POS.keys()):
+                if sym not in api_pos or float(api_pos.get(sym, {}).get("positionAmt", 0)) == 0:
+                    POS.pop(sym, None)
+                    OPEN_ORDERS.pop(sym, None)
+                    await ex.cancel_all(sym)
+                    log.info("🧹 %s сброшена (нет на бирже)", sym)
+        except Exception as e:
+            log.error("Ошибка сброса позиций: %s", e)
+        
         # ✅ Защита от silent crash
         try:
             equity = await ex.balance()
