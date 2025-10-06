@@ -182,15 +182,25 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     try:
         ci = await ex.get_contract_info(sym)
         min_nom_str = ci["data"][0].get("minNotional")
-        if min_nom_str is None:
+        if not min_nom_str:
             raise ValueError("minNotional missing")
         min_nom = float(min_nom_str)
     except Exception as e:
         log.warning("⚠️  %s minNotional error: %s — использую fallback", sym, e)
-        min_nom = CONFIG.MIN_NOTIONAL_FALLBACK
+    
+    # ✅ Устанавливаем fallback НА ОДИН РАЗ
+    if sym in ("DOGE-USDT", "XRP-USDT", "BNB-USDT"):
+        min_nom = CONFIG.MIN_NOTIONAL_FALLBACK * 0.5  # например, $25
+    else:
+        min_nom = CONFIG.MIN_NOTIONAL_FALLBACK         # например, $500
 
     # ✅ Максимум 90% от баланса × плечо
     max_nom = equity * 0.9 * CONFIG.LEVERAGE
+    if min_nom > max_nom:
+        log.info("⏭️  %s min_nom (%.2f) > max_nom (%.2f) — пропуск", sym, min_nom, max_nom)
+        return
+
+    # ✅ Финальный лимит
     min_nom = min(min_nom, max_nom)
 
     # ✅ Подтягиваем до минимума
