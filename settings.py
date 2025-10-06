@@ -22,7 +22,7 @@ class ScalperConfig:
     TRADE_HOURS = (0, 24)
     PARTIAL_TP = 0.6
     TUNE = field(default_factory=lambda: {
-        **{s: {"MIN_ATR_PC": 0.00006, "MAX_SPREAD": 0.00015} for s in ("BTC-USDT", "ETH-USDT")},
+        **{s: {"MIN_ATR_PC": 0.00006, "MAX_SPREAD": 0.00015} for s in ("LTC-USDT", "SUI-USDT")},
         **{s: {"MIN_ATR_PC": 0.00012, "MAX_SPREAD": 0.00035} for s in ("SOL-USDT", "BNB-USDT")},
         **{s: {"MIN_ATR_PC": 0.00015, "MAX_SPREAD": 0.00060} for s in ("DOGE-USDT", "XRP-USDT")},
     })
