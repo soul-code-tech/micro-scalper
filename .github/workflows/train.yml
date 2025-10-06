@@ -1,35 +1,45 @@
-name: Walk-forward retrain (2 months)
+name: Daily walk-forward retrain (60 days)
+
 on:
   schedule:
-    - cron: "0 0 1 */2 *"   # 1-е число каждого 2-го месяца
-  workflow_dispatch:
+    - cron: "30 2 * * *"        # 02:30 UTC каждый день
+  workflow_dispatch:            # ручной запуск
 
 permissions:
-  contents: write
+  contents: write               # нужно для пуша в ветку weights
 
 jobs:
-  train:
+  retrain:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
+      - name: checkout main
+        uses: actions/checkout@v4
         with:
           ref: main
+          fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - name: setup python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12.7"
 
-      - run: pip install -r requirements.txt
+      - name: install deps
+        run: pip install -r requirements.txt
 
-      - name: train models
+      - name: walk-forward train
         env:
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
-        run: python scripts/train_all.py
+        run: python scripts/train_all.py --days 60
 
-      - name: upload weights
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: python scripts/upload_weights.py
+      - name: commit & push weights
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout weights || git checkout --orphan weights
+          git rm -rf . || true
+          cp -r weights/* .
+          git add .
+          git diff-index --quiet HEAD || git commit -m "daily weights $(date -u +%F)"
+          git push origin weights --force
