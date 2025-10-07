@@ -30,7 +30,7 @@ def calc(entry: float, atr: float, side: str, equity: float, sym: str,
     atr    – абсолютный ATR (в долларах)
     side   – "LONG" / "SHORT"
     equity – equity в $
-    sym    – символ (BTC-USDT и т.д.) для индивидуальных настроек
+    sym    – символ (BTCUSDT и т.д.) для индивидуальных настроек
     """
     # 1. параметры по умолчанию
     risk_pc   = CONFIG.RISK_PER_TRADE
