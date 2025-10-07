@@ -55,10 +55,11 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
                         params={"symbol": public_sym}).json()
     if not mark_raw or "data" not in mark_raw or not mark_raw["data"]:
         logging.warning("⚠️ %s – нет цены, пропуск", symbol)
-        print("DBG пустой стакан", symbol)   # ← добавь
+        print("DBG пустой стакан", symbol)
+        print("DBG перед return None – цена", mark_raw)   # ← ВОТ СЮДА
         return None
     mark = float(mark_raw["data"][0][0])   # цена
-
+    
     # 4. объём и ордер
     qty_usd = usd_qty * leverage
     qty_coin = round(qty_usd / entry_px, lot_prec)
