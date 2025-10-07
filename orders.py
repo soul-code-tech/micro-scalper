@@ -50,12 +50,12 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
         entry_px = float(book["asks"][0][0]) + math.pow(10, -price_prec)
 
     # 3. цена маркировки ➜ тоже публичный энд-поинт
-    mark_resp = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
-                             params={"symbol": public_sym}).json()
-    if not mark_resp or "price" not in mark_resp:
+    mark_raw = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
+                        params={"symbol": public_sym}).json()
+    if not mark_raw or "data" not in mark_raw or not mark_raw["data"]:
         logging.warning("⚠️ %s – нет цены, пропуск", symbol)
         return None
-    mark = float(mark_resp["price"])
+    mark = float(mark_raw["data"][0][0])   # цена
 
     # 4. объём и ордер
     qty_usd = usd_qty * leverage
