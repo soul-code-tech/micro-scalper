@@ -1,7 +1,3 @@
-from dataclasses import dataclass, field
-from typing import Tuple, Dict
-import os
-
 @dataclass(slots=True)
 class ScalperConfig:
     SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "SUI-USDT")
@@ -42,12 +38,6 @@ PRICE_PRECISION = {
     "SUI-USDT": 3,
     "BNB-USDT": 2,
 }
-    LOT_STEP: float = 0.001
-    LEVERAGE: int = 20
-    MIN_NOTIONAL_FALLBACK: float = 15.0
-    MAX_BALANCE_PC: float = 0.05
-
-CONFIG = ScalperConfig()
 
 def validate_env() -> None:
     for k in ("BINGX_API_KEY", "BINGX_SECRET_KEY"):
