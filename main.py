@@ -181,7 +181,6 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("⏭️  %s low atr", sym)
         return
     if vol_usd < CONFIG.MIN_VOL_USD:
-        log.info("⏭️  %s low vol", sym)
         return
     if not side:
         log.info("⏭️  %s no side", sym)
@@ -294,8 +293,27 @@ async def trade_loop(ex: BingXAsync):
     global PEAK_BALANCE, CYCLE
     await download_weights_once()
 
+    # в trade_loop()
     while True:
-        CYCLE += 1
+    CYCLE += 1
+    try:
+        equity = await ex.balance()
+    except Exception as e:
+        log.error("💥 SILENT CRASH: %s", e)
+        await asyncio.sleep(5)
+        continue
+
+    # ---------- последовательно, не параллельно ----------
+    for sym in CONFIG.SYMBOLS:
+        try:
+            api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
+            if sym in api_pos and float(api_pos[sym]["positionAmt"]) != 0:
+                await manage(ex, sym, api_pos[sym])
+            else:
+                await think(ex, sym, equity)
+        except Exception as e:
+            log.warning("❌ %s cycle error: %s", sym, e)
+        await asyncio.sleep(15)   # 15 с между парами ≈ 60 с на цикл
         
         # ---------- ручной сброс позиций, если биржа показывает 0 ----------
         try:
