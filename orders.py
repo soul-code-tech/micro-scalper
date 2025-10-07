@@ -58,7 +58,7 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
         print("DBG пустой стакан", symbol)
         print("DBG перед return None – цена", mark_raw)   # ← ВОТ СЮДА
         return None
-    mark = float(mark_raw["data"][0][0])   # цена
+    mark = float(mark_raw["data"]["price"])   # цена
     
     # 4. объём и ордер
     qty_usd = usd_qty * leverage
