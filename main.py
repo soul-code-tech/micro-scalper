@@ -184,9 +184,9 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     if atr_pc < CONFIG.MIN_ATR_PC:
         log.info("⏭️  %s low atr", sym)
         return
-    if vol_usd < CONFIG.MIN_VOL_USD:
-        log.info("⏭️ %s low vol (stat %.0f$)", sym, CONFIG.MIN_VOL_USD)
-        return
+   # if vol_usd < CONFIG.MIN_VOL_USD:
+   #     log.info("⏭️ %s low vol (stat %.0f$)", sym, CONFIG.MIN_VOL_USD)
+   #     return
     if vol_usd < min_vol_dyn:
         log.info("⏭️ %s low vol (dyn %.0f$)", sym, min_vol_dyn)
         return
