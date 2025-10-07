@@ -23,39 +23,36 @@ def _sign(params: dict) -> str:
 
 def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
                 sl_price: float, tp_price: float) -> Optional[Tuple[str, float, float]]:
-    """Возвращает (orderId, entry_px, qty_coin) или None."""
     price_prec, lot_prec = _get_precision(symbol)
 
-    # 1. Читаем стакан
+    # 1. стакан ➜ требует -USDT
+    public_sym = symbol.replace("USDT", "-USDT")
     book = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/depth",
-                        params={"symbol": symbol, "limit": 5}).json()
-
-    # ✅ Проверка ДО доступа к asks/bids
+                        params={"symbol": public_sym, "limit": 5}).json()
     if not book or "asks" not in book or "bids" not in book or not book["asks"] or not book["bids"]:
-        logging.warning("⚠️ %s – нет стакана, пропуск", symbol)
+        logging.warning("⚠️ %s – пустой стакан, пропуск", symbol)
         return None
 
-    # 2. Цена входа
+    # 2. цена
     if side == "BUY":
         entry_px = float(book["bids"][0]["price"]) - math.pow(10, -price_prec)
     else:
         entry_px = float(book["asks"][0]["price"]) + math.pow(10, -price_prec)
     entry_px = round(entry_px, price_prec)
 
-    # 3. Объём в монетах
+    # 3. цена маркировки ➜ тоже публичный энд-поинт
     mark_resp = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
-                             params={"symbol": symbol}).json()
+                             params={"symbol": public_sym}).json()
     if not mark_resp or "price" not in mark_resp:
-        logging.warning("⚠️ %s – нет цены маркировки, пропуск", symbol)
+        logging.warning("⚠️ %s – нет цены, пропуск", symbol)
         return None
-
     mark = float(mark_resp["price"])
+
+    # 4. объём и ордер
     qty_usd = usd_qty * leverage
     qty_coin = round(qty_usd / entry_px, lot_prec)
-
-    # 4. Ордер
     params = {
-        "symbol": symbol,
+        "symbol": symbol,          # ← приватный энд-поинт: без дефиса
         "side": side,
         "type": "LIMIT",
         "timeInForce": "POST_ONLY",
