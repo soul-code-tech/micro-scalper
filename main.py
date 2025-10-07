@@ -34,6 +34,7 @@ from store import cache
 from settings import CONFIG
 from tf_selector import best_timeframe
 from health_aio import start_health
+from orders import limit_entry, await_fill_or_cancel, limit_sl_tp   # ← должно быть
 
 print("=== DEBUG: импорты завершены ===")
 COL = {
