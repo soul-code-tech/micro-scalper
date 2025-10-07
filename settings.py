@@ -4,7 +4,7 @@ import os
 
 @dataclass(slots=True)
 class ScalperConfig:
-    SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "BNB-USDT", "SUI-USDT")
+    SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "XRP-USDT", "BNB-USDT", "SUI-USDT")
     TIME_FRAMES: Tuple[str, ...] = ("5m")
     MAX_POS: int = 5
     RISK_PER_TRADE: float = 0.10
