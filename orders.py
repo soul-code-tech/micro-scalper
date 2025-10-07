@@ -9,7 +9,7 @@ API_KEY  = os.getenv("BINGX_API_KEY")
 SECRET   = os.getenv("BINGX_SECRET_KEY")
 
 def _get_precision(symbol: str) -> Tuple[int, int]:
-    public_sym = symbol.replace("USDT", "-USDT")   # ← добавь
+    public_sym = symbol   # ← добавь
     try:
         r = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/contracts",
                          params={"symbol": public_sym}).json()  # ← params
@@ -29,7 +29,7 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     price_prec, lot_prec = _get_precision(symbol)
 
     # 1. стакан ➜ требует -USDT
-    public_sym = symbol.replace("USDT", "-USDT")
+    public_sym = symbol
     raw = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/depth",
                        params={"symbol": public_sym, "limit": 5}).json()
     # ➜ ВОТ СЮДА:
