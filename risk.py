@@ -1,10 +1,12 @@
 from typing import NamedTuple
 from settings import CONFIG
+from dataclasses import dataclass
 import math
 
 # ------------------------------ структура ------------------------------
 class Sizing(NamedTuple):
     size: float
+    usd_risk: float   # ← добавьте эту строку
     sl_px: float
     tp_px: float
     partial_qty: float
@@ -42,7 +44,7 @@ def calc(entry: float, atr: float, side: str, equity: float, sym: str,
         tp_mult  = CONFIG.TUNE[sym].get("TP1_MULT",   tp_mult)
 
     # 3. расстояние стопа и тейка
-    risk_amt = equity * risk_pc / 100
+    risk_amt = equity * risk_pc / 100     
     sl_dist = atr * atr_mult
     sl_px    = entry - sl_dist if side == "LONG" else entry + sl_dist
     tp_dist  = sl_dist * rr
@@ -62,7 +64,7 @@ def calc(entry: float, atr: float, side: str, equity: float, sym: str,
 
     # 5. частичный тейк
     partial_qty = size * CONFIG.PARTIAL_TP
-    return Sizing(size, sl_px, tp_px, partial_qty)
+    return Sizing(size, risk_amt, sl_px, tp_px, partial_qty)
 
 # ------------------------------ стоп-аут ------------------------------
 def max_drawdown_stop(current_equity: float, peak: float) -> bool:
