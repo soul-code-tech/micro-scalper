@@ -4,9 +4,9 @@ import os
 
 @dataclass(slots=True)
 class ScalperConfig:
-    SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "LTC-USDT", "SUI-USDT")
+    SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "BNB-USDT", "SUI-USDT")
     TIME_FRAMES: Tuple[str, ...] = ("5m")
-    MAX_POS: int = 3
+    MAX_POS: int = 5
     RISK_PER_TRADE: float = 0.10
     KELLY_F: float = 0.15
     MAX_DD_STOP: float = 10.0
@@ -23,7 +23,7 @@ class ScalperConfig:
     PARTIAL_TP: float = 0.6
     TUNE: Dict[str, Dict[str, float]] = field(default_factory=lambda: {
         **{s: {"MIN_ATR_PC": 0.00015, "MAX_SPREAD": 0.00060} for s in ("LTC-USDT", "SUI-USDT")},
-        **{s: {"MIN_ATR_PC": 0.00012, "MAX_SPREAD": 0.00035} for s in ("SOL-USDT", "BNB-USDT")},
+        **{s: {"MIN_ATR_PC": 0.00012, "MAX_SPREAD": 0.00035} for s in ("SHIB-USDT", "BNB-USDT")},
         **{s: {"MIN_ATR_PC": 0.00015, "MAX_SPREAD": 0.00060} for s in ("DOGE-USDT", "XRP-USDT")},
     })
     LOT_STEP: float = 0.001
