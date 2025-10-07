@@ -20,6 +20,8 @@ from tf_selector import best_timeframe
 from health_aio import start_health
 from orders import limit_entry, await_fill_or_cancel, limit_sl_tp   # ← должно быть
 
+logging.getLogger("orders").setLevel(logging.DEBUG)
+
 print("=== DEBUG: импорты завершены ===")
 COL = {
     "GRN": "\33[32m", "RED": "\33[31m", "YEL": "\33[33m",
