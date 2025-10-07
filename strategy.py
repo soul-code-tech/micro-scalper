@@ -121,13 +121,6 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
         ema200 = df["c"].ewm(span=200).mean().iloc[-1]
         current_price = df["c"].iloc[-1]
 
-        
-        if sym not in TREND_FILTER_DISABLED:
-            if current_price < ema200:
-                long_raw = 0.0   # запрещаем LONG
-            if current_price > ema200:
-                short_raw = 0.0  # запрещаем SHORT
-
         print(f"[DBG] {sym} trend filter applied | price={current_price:.4f}, EMA200={ema200:.4f} | long={long_raw}, short={short_raw}")
         return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
 
@@ -138,18 +131,7 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
     long_raw = float(prob > thr)
     short_raw = float(prob < 1 - thr)
 
-    # ✅ Фильтр тренда — только если не отключён
-    ema200 = df["c"].ewm(span=200).mean().iloc[-1]
-    current_price = df["c"].iloc[-1]
-    TREND_FILTER_DISABLED = ("DOGE-USDT", "SHIB-USDT")
 
-    if sym not in TREND_FILTER_DISABLED:
-        if current_price < ema200:
-            long_raw = 0.0
-        if current_price > ema200:
-            short_raw = 0.0
-
-    print(f"[DBG] {sym}  prob={prob:.3f}  long={long_raw}  short={short_raw}")
     return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
 async def train_one(sym: str, tf: str, bars: int = 1440):
     from exchange import BingXAsync
