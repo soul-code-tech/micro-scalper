@@ -6,6 +6,17 @@ ENDPOINT = "https://open-api.bingx.com"
 API_KEY  = os.getenv("BINGX_API_KEY")
 SECRET   = os.getenv("BINGX_SECRET_KEY")
 
+def _get_precision(symbol: str) -> Tuple[int, int]:
+    """price_precision, lot_precision"""
+    try:
+        r = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/contracts").json()
+        for s in r["data"]:
+            if s["symbol"] == symbol:
+                return int(s["pricePrecision"]), int(s["quantityPrecision"])
+    except Exception as e:
+        logging.warning("⚠️ _get_precision failed for %s: %s", symbol, e)
+    return 4, 3  # fallback
+
 def _sign(params: dict) -> str:
     query = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
     return hmac.new(SECRET.encode(), query.encode(), hashlib.sha256).hexdigest()
