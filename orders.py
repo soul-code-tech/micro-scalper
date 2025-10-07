@@ -81,6 +81,7 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
                  symbol, side, entry_px, qty_coin, order_id)
     print("DBG успех", symbol, order_id, entry_px, qty_coin)   # ← добавь                
     return order_id, entry_px, qty_coin
+    print("DBG перед успехом", symbol, order_id, entry_px, qty_coin)   # ← ВОТ СЮДА
 
 def await_fill_or_cancel(order_id: str, symbol: str, max_sec: float = 8) -> Optional[float]:
     t0 = time.time()
