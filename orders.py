@@ -27,6 +27,7 @@ def _sign(params: dict) -> str:
 def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
                 sl_price: float, tp_price: float) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
+    print("DBG limit_entry", symbol, side, usd_qty, leverage)              
 
     # 1. стакан ➜ требует -USDT
     public_sym = symbol
@@ -54,6 +55,7 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
                         params={"symbol": public_sym}).json()
     if not mark_raw or "data" not in mark_raw or not mark_raw["data"]:
         logging.warning("⚠️ %s – нет цены, пропуск", symbol)
+        print("DBG пустой стакан", symbol)   # ← добавь
         return None
     mark = float(mark_raw["data"][0][0])   # цена
 
@@ -76,6 +78,7 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     order_id = r.json()["data"]["order"]["id"]
     logging.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
                  symbol, side, entry_px, qty_coin, order_id)
+    print("DBG успех", symbol, order_id, entry_px, qty_coin)   # ← добавь                
     return order_id, entry_px, qty_coin
 
 def await_fill_or_cancel(order_id: str, symbol: str, max_sec: float = 8) -> Optional[float]:
