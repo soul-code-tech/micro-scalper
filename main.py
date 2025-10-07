@@ -112,11 +112,12 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
 
     # --- STOP-OUT ---
     if (side == "LONG" and mark <= pos["sl"]) or (side == "SHORT" and mark >= pos["sl"]):
+        # считаем комиссию 0,1 % (пример)
+        fee = pos["qty"] * mark * 0.001
+        pnl = (mark - pos["entry"]) * pos["qty"] * (1 if side == "LONG" else -1) - fee
+        log.info("🛑 %s stopped at %s  qty=%.3f  fee=%.4f$  pnl=%.4f$", sym, human_float(mark), pos["qty"], fee, pnl)
         await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", pos["qty"])
         POS.pop(sym, None)
-        OPEN_ORDERS.pop(sym, None)
-        await ex.cancel_all(sym)
-        log.info("🛑 %s stopped at %s", sym, human_float(mark))
         return
 
 
@@ -165,11 +166,14 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     atr_pc = score["atr_pc"]
     px = float(klines[-1][4])
     vol_usd = float(klines[-1][5]) * px
+    min_vol_dyn = equity * 0.05          # ← ОБЪЯВЛЯЕМ СРАЗУ ПОСЛЕ vol_usd
     side = ("LONG" if score["long"] > score["short"] else
             "SHORT" if score["short"] > score["long"] else None)
 
     log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
              sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
+    
+    
 
     # ✅ Фильтры
     utc_hour = datetime.now(timezone.utc).hour
@@ -188,6 +192,9 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         return
     if len(POS) >= CONFIG.MAX_POS:
         log.info("⏭️  %s max pos reached", sym)
+        return
+    if sym in POS:
+    log.info("⏭️ %s already in POS – skip", sym)
         return
 
     # ✅ Расчёт размера
@@ -208,7 +215,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         min_nom = CONFIG.MIN_NOTIONAL_FALLBACK
 
     # ✅ Для дешёвых монет — снижаем порог
-    if sym in ("DOGE-USDT", "XRP-USDT", "LTC-USDT", "SUI-USDT"):
+    if sym in ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "XRP-USDT", "BNB-USDT", "SUI-USDT"):
         min_nom = min(CONFIG.MIN_NOTIONAL_FALLBACK * 0.5, min_nom)
 
     # ✅ Максимум: 90% × leverage
@@ -243,7 +250,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                 log.warning("⚠️  set_leverage %s: %s", sym, e)
 
         position_side = "LONG" if side == "LONG" else "SHORT"
-        order = await ex.place_order(sym, position_side, "LIMIT", sizing.size, px, "GTC")
+        order = await ex.place_order(sym, position_side, "MARKET", sizing.size, None)
         if not order:
             log.warning("❌ place_order вернул None для %s", sym)
             return
@@ -301,7 +308,7 @@ async def trade_loop(ex: BingXAsync):
             equity = await ex.balance()
         except Exception as e:
             log.error("💥 SILENT CRASH: %s", e)
-            await asyncio.sleep(5)
+            await asyncio.sleep(10)
             continue
 
         # ---------- последовательный обход пар ----------
@@ -316,7 +323,7 @@ async def trade_loop(ex: BingXAsync):
                     log.info("🧹 %s сброшена (нет на бирже)", sym)
         except Exception as e:
             log.error("Ошибка сброса позиций: %s", e)
-            await asyncio.sleep(5)
+            await asyncio.sleep(10)
             continue
 
         for sym in CONFIG.SYMBOLS:
@@ -327,7 +334,23 @@ async def trade_loop(ex: BingXAsync):
                     await think(ex, sym, equity)
             except Exception as e:
                 log.warning("❌ %s cycle error: %s", sym, e)
-            await asyncio.sleep(1)   # 1 с между парами
+            await asyncio.sleep(10)   # 1 с между парами
+        # ---------- сводный PnL ----------
+        if CYCLE % 20 == 0:   # каждые 20 циклов (~20 мин)
+            total_pnl = 0.0
+            for sym, p in POS.items():
+                mark = await ex.mark_price(sym)
+                fee = p["qty"] * mark * 0.001
+                pnl = (mark - p["entry"]) * p["qty"] * (1 if p["side"] == "LONG" else -1) - fee
+                total_pnl += pnl
+        if total_pnl > equity * 0.02:   # +2 % от депозита
+            log.info("💰 %s EXIT  qty=%.3f  entry=%s  exit=%s  fee=%.4f$  net=%.4f$",
+                 sym, pos["qty"], human_float(pos["entry"]), human_float(mark),
+                 fee, pnl)
+            for sym in list(POS.keys()):
+                await ex.close_position(sym, "SELL" if POS[sym]["side"] == "LONG" else "BUY", POS[sym]["qty"])
+                POS.pop(sym, None)
+                await ex.cancel_all(sym)    
 
         # ---------- метки жизни ----------
         if CYCLE % 10 == 0:
