@@ -1,6 +1,6 @@
 import os, time, math, hmac, hashlib, requests, logging
 from typing import Optional, Tuple
-from config import CONFIG
+from settings import CONFIG
 
 ENDPOINT = "https://open-api.bingx.com"
 API_KEY  = os.getenv("BINGX_API_KEY")
