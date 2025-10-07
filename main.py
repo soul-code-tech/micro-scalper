@@ -31,7 +31,7 @@ from exchange import BingXAsync
 from strategy import micro_score
 from risk import calc, max_drawdown_stop, Sizing
 from store import cache
-from config import CONFIG
+from settings import CONFIG
 from tf_selector import best_timeframe
 from health_aio import start_health
 
