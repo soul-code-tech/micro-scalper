@@ -121,9 +121,7 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
         ema200 = df["c"].ewm(span=200).mean().iloc[-1]
         current_price = df["c"].iloc[-1]
 
-        # ✅ Символы, где НЕ применяем трендовый фильтр
-        TREND_FILTER_DISABLED = ("DOGE-USDT", "SHIB-USDT")
-
+        
         if sym not in TREND_FILTER_DISABLED:
             if current_price < ema200:
                 long_raw = 0.0   # запрещаем LONG
