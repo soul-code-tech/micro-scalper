@@ -251,38 +251,38 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                 log.warning("⚠️  set_leverage %s: %s", sym, e)
 
         position_side = "LONG" if side == "LONG" else "SHORT"
-        order = await ex.place_order(sym, position_side, "MARKET", sizing.size, None)
-        if not order:
-            log.warning("❌ place_order вернул None для %s", sym)
+        # ----------  ЛИМИТНЫЙ ВХОД + OCO SL/TP  ----------
+        order_data = await limit_entry(sym, side, sizing.usd_risk, CONFIG.LEVERAGE,
+                                       sizing.sl_px, sizing.tp_px)
+        if not order_data:                       # не удалось поставить лимит
+            log.info("⏭ %s – пропуск сигнала (лимит не исполнился)", sym)
             return
-        log.info("PLACE-RESP %s %s", sym, order)
+        order_id, entry_px, qty_coin = order_data
 
-        if order.get("code") == 0:
-            order_data = order["data"].get("order")
-            if not order_data:
-                log.warning("❌ Нет данных 'order' в ответе: %s", order)
-                return
-            oid = order_data.get("orderId")
-            if not oid:
-                log.warning("❌ Не найден orderId: %s", order_data)
-                return
+        avg_px = await await_fill_or_cancel(order_id, sym, max_sec=8)
+        if avg_px is None:                       # не успели за 8 с
+            return
 
-            POS[sym] = dict(
-                side=side,
-                qty=sizing.size,
-                entry=px,
-                sl=sizing.sl_px,
-                sl_orig=sizing.sl_px,
-                tp=sizing.tp_px,
-                part=sizing.partial_qty,
-                oid=oid,
-                atr=atr_pc * px,
-                tp1_done=False,
-                breakeven_done=False,
-            )
-            log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
-                     sym, side, sizing.size, human_float(px),
-                     human_float(sizing.sl_px), human_float(sizing.tp_px))
+        # ставим лимитные SL и TP
+        await limit_sl_tp(sym, side, qty_coin, sizing.sl_px, sizing.tp_px)
+
+        # сохраняем позицию в память
+        POS[sym] = dict(
+            side=side,
+            qty=qty_coin,
+            entry=avg_px,
+            sl=sizing.sl_px,
+            sl_orig=sizing.sl_px,
+            tp=sizing.tp_px,
+            part=qty_coin * CONFIG.PARTIAL_TP,
+            atr=sizing.atr,
+            tp1_done=False,
+            breakeven_done=False,
+        )
+        log.info("📨 %s %s %.3f @ %s SL=%s TP=%s",
+                 sym, side, qty_coin, human_float(avg_px),
+                 human_float(sizing.sl_px), human_float(sizing.tp_px))
+        # -------------------------------------------------
 
 
 # ---------- УРОВЕНЬ МОДУЛЯ ----------
