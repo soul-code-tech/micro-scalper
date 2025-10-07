@@ -181,6 +181,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("⏭️  %s low atr", sym)
         return
     if vol_usd < CONFIG.MIN_VOL_USD:
+        log.info("⏭️ %s low vol (dyn %.0f$)", sym, min_vol_dyn)
         return
     if not side:
         log.info("⏭️  %s no side", sym)
@@ -293,9 +294,9 @@ async def trade_loop(ex: BingXAsync):
     global PEAK_BALANCE, CYCLE
     await download_weights_once()
 
-    # в trade_loop()
     while True:
         CYCLE += 1
+        # ---------- одна попытка баланса ----------
         try:
             equity = await ex.balance()
         except Exception as e:
@@ -303,22 +304,10 @@ async def trade_loop(ex: BingXAsync):
             await asyncio.sleep(5)
             continue
 
-    # ---------- последовательно, не параллельно ----------
-    for sym in CONFIG.SYMBOLS:
+        # ---------- последовательный обход пар ----------
         try:
             api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
-            if sym in api_pos and float(api_pos[sym]["positionAmt"]) != 0:
-                await manage(ex, sym, api_pos[sym])
-            else:
-                await think(ex, sym, equity)
-        except Exception as e:
-            log.warning("❌ %s cycle error: %s", sym, e)
-        await asyncio.sleep(15)   # 15 с между парами ≈ 60 с на цикл
-        
-        # ---------- ручной сброс позиций, если биржа показывает 0 ----------
-        try:
-            api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
-            # чистим свою память, если на бирже пусто
+            # ручной сброс, если биржа показывает 0
             for sym in list(POS.keys()):
                 if sym not in api_pos or float(api_pos.get(sym, {}).get("positionAmt", 0)) == 0:
                     POS.pop(sym, None)
@@ -327,62 +316,28 @@ async def trade_loop(ex: BingXAsync):
                     log.info("🧹 %s сброшена (нет на бирже)", sym)
         except Exception as e:
             log.error("Ошибка сброса позиций: %s", e)
-        
-        # ✅ Защита от silent crash
-        try:
-            equity = await ex.balance()
-        except Exception as e:
-            log.error("💥 SILENT CRASH: %s\n%s", e, traceback.format_exc())
             await asyncio.sleep(5)
             continue
 
-        if equity > PEAK_BALANCE or PEAK_BALANCE == 0:
-            PEAK_BALANCE = equity
+        for sym in CONFIG.SYMBOLS:
+            try:
+                if sym in api_pos and float(api_pos[sym]["positionAmt"]) != 0:
+                    await manage(ex, sym, api_pos[sym])
+                else:
+                    await think(ex, sym, equity)
+            except Exception as e:
+                log.warning("❌ %s cycle error: %s", sym, e)
+            await asyncio.sleep(1)   # 1 с между парами
 
-        if max_drawdown_stop(equity, PEAK_BALANCE):
-            if CYCLE % 15 == 0:
-                dd = (PEAK_BALANCE - equity) / PEAK_BALANCE * 100
-                log.debug("⚠️  DD %.1f %% – skip cycle", dd)
-            await asyncio.sleep(1)
-            continue
-
-        prev_eq = cache.get("prev_eq", 0.0)
-        if abs(equity - prev_eq) > 0.01:
-            log.info("💰 Equity %.2f $ (peak %.2f $)", equity, PEAK_BALANCE)
-            cache.set("prev_eq", equity)
-
-        # ✅ Каждые 10 циклов — метка жизни
+        # ---------- метки жизни ----------
         if CYCLE % 10 == 0:
             log.info("💓 ALIVE  cycle=%d  POS=%d  EQ=%.2f$", CYCLE, len(POS), equity)
-
-        # Сводка каждые 15 циклов (~5 минут)
         if CYCLE % 15 == 0:
             dd = (PEAK_BALANCE - equity) / PEAK_BALANCE * 100 if PEAK_BALANCE else 0.0
             log.info("📊 EQ:%.2f $  Peak:%.2f $  DD:%.2f%%  POS:%d  ORD:%d",
                      equity, PEAK_BALANCE, dd, len(POS), len(OPEN_ORDERS))
 
-        try:
-            api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
-        except Exception as e:
-            log.error("Positions fetch: %s\n%s", e, traceback.format_exc())
-            await asyncio.sleep(5)
-            continue
-
-        for sym, p in api_pos.items():
-            if float(p["positionAmt"]) != 0:
-                await manage(ex, sym, p)
-
-        for sym in CONFIG.SYMBOLS:
-            if sym in api_pos:
-                continue
-
-            # ✅ Добавьте задержку между символами
-            await asyncio.sleep(1)  # 1 секунда между символами
-
-            await think(ex, sym, equity)
-        
-        await asyncio.sleep(20)
-
+        await asyncio.sleep(15)   # ≈ 60 с на весь цикл
 
 async def main():
     asyncio.create_task(start_health())
