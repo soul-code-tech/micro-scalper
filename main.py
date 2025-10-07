@@ -240,7 +240,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         position_side = "LONG" if side == "LONG" else "SHORT"
         
         # ----------  ЛИМИТНЫЙ ВХОД + OCO SL/TP  ----------
-        order_data = market_entry(sym, side, sizing.usd_risk, CONFIG.LEVERAGE,
+        order_data = limit_entry(sym, side, sizing.usd_risk, CONFIG.LEVERAGE,
                          sizing.sl_px, sizing.tp_px)
         if order_data is None:                       # новая проверка
             log.info("⏭ %s – пропуск (limit_entry вернул None)", sym)
