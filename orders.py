@@ -79,19 +79,20 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     return order_id, entry_px, qty_coin
 
 def await_fill_or_cancel(order_id: str, symbol: str, max_sec: float = 8) -> Optional[float]:
-    """Ждёт fill max_sec. Возвращает avgPrice или None."""
     t0 = time.time()
+    print("DBG await_fill_or_cancel", symbol, order_id)   # ← добавь
     while time.time() - t0 < max_sec:
         try:
             resp = requests.get(
                 f"{ENDPOINT}/openApi/swap/v2/trade/order",
                 params={"symbol": symbol, "orderId": order_id, "timestamp": int(time.time() * 1000)}
             ).json()
-            resp["signature"] = _sign(resp)  # ← подпиши
+            print("DBG await resp", resp)   # ← добавь
             order = resp.get("data", {})
             if order.get("status") == "FILLED":
                 return float(order["avgPrice"])
         except Exception as e:
+            print("DBG await exception", e)   # ← добавь
             logging.warning("⚠️  await_fill %s: %s", symbol, e)
         time.sleep(0.5)
 
