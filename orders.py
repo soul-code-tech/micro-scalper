@@ -7,15 +7,16 @@ API_KEY  = os.getenv("BINGX_API_KEY")
 SECRET   = os.getenv("BINGX_SECRET_KEY")
 
 def _get_precision(symbol: str) -> Tuple[int, int]:
-    """price_precision, lot_precision"""
+    public_sym = symbol.replace("USDT", "-USDT")   # ← добавь
     try:
-        r = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/contracts").json()
+        r = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/contracts",
+                         params={"symbol": public_sym}).json()  # ← params
         for s in r["data"]:
-            if s["symbol"] == symbol:
+            if s["symbol"] == public_sym:          # ← сравниваем тоже с public_sym
                 return int(s["pricePrecision"]), int(s["quantityPrecision"])
     except Exception as e:
         logging.warning("⚠️ _get_precision failed for %s: %s", symbol, e)
-    return 4, 3  # fallback
+    return 4, 3
 
 def _sign(params: dict) -> str:
     query = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
@@ -27,12 +28,15 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
 
     # 1. стакан ➜ требует -USDT
     public_sym = symbol.replace("USDT", "-USDT")
-    book = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/depth",
-                        params={"symbol": public_sym, "limit": 5}).json()
-    if not book or "asks" not in book or "bids" not in book or not book["asks"] or not book["bids"]:
-        logging.warning("⚠️ %s – пустой стакан, пропуск", symbol)
-        return None
+    raw = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/depth",
+                       params={"symbol": public_sym, "limit": 5}).json()
+    book = raw.get("data", {})          # ← распаковка
+    logging.debug("DBG depth %s → %s", public_sym, raw)
 
+    if not book or "asks" not in book or "bids" not in book or not book["asks"] or not book["bids"]:
+        logging.warning("⚠️ %s – пустой стакан", symbol)
+        return None
+    
     # 2. цена
     if side == "BUY":
         entry_px = float(book["bids"][0]["price"]) - math.pow(10, -price_prec)
