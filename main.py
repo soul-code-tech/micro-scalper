@@ -76,6 +76,7 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
 
     mark = float(api_pos["markPrice"])
     side = pos["side"]
+    risk_dist = abs(pos["entry"] - pos["sl_orig"])   # ← ОБЪЯВЛЯЕМ СРАЗУ
 
     # --- TP1: 60% при достижении 1.4×ATR ---
     if not pos.get("tp1_done"):
