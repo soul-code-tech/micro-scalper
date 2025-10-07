@@ -277,7 +277,6 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             sl_orig=sizing.sl_px,
             tp=sizing.tp_px,
             part=qty_coin * CONFIG.PARTIAL_TP,
-            sizing.usd_risk
             atr=sizing.atr,
             tp1_done=False,
             breakeven_done=False,
