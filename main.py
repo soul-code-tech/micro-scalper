@@ -251,25 +251,6 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                 log.warning("⚠️  set_leverage %s: %s", sym, e)
 
         position_side = "LONG" if side == "LONG" else "SHORT"
-
-        # 🔽 ЦЕНА ЧУТЬ ЛУЧШЕ РЫНКА
-        book = await ex.order_book(sym, limit=5)
-        best_bid = float(book["bids"][0][0])
-        best_ask = float(book["asks"][0][0])
-
-        if side == "LONG":
-            entry_price = round(best_bid * 0.9995, CONFIG.PRICE_PRECISION[sym])
-        else:
-            entry_price = round(best_ask * 1.0005, CONFIG.PRICE_PRECISION[sym])
-
-        order = await ex.place_order(
-        symbol=sym,
-        position_side=position_side,
-        order_type="LIMIT",
-        quantity=sizing.size,
-        price=entry_price,
-        post_only=True
-        )
         
         # ----------  ЛИМИТНЫЙ ВХОД + OCO SL/TP  ----------
         order_data = await limit_entry(sym, side, sizing.usd_risk, CONFIG.LEVERAGE,
