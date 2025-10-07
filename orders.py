@@ -21,35 +21,26 @@ def _sign(params: dict) -> str:
     query = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
     return hmac.new(SECRET.encode(), query.encode(), hashlib.sha256).hexdigest()
 
-def market_entry(symbol: str, side: str, usd_qty: float, leverage: int) -> Optional[Tuple[str, float, float]]:
-    """Рыночный вход — не ждёт стакана."""
+def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
+                sl_price: float, tp_price: float) -> Optional[Tuple[str, float, float]]:
+    """Возвращает (orderId, entry_px, qty_coin) или None."""
     price_prec, lot_prec = _get_precision(symbol)
 
-    mark_resp = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
-                             params={"symbol": symbol}).json()
-    if not mark_resp or "price" not in mark_resp:
-        logging.warning("⚠️ %s – нет цены маркировки", symbol)
+    # 1. Читаем стакан
+    book = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/depth",
+                        params={"symbol": symbol, "limit": 5}).json()
+
+    # ✅ Проверка ДО доступа к asks/bids
+    if not book or "asks" not in book or "bids" not in book or not book["asks"] or not book["bids"]:
+        logging.warning("⚠️ %s – нет стакана, пропуск", symbol)
         return None
 
-    mark = float(mark_resp["price"])
-    qty_usd = usd_qty * leverage
-    qty_coin = round(qty_usd / mark, lot_prec)
-
-    params = {
-        "symbol": symbol,
-        "side": side,
-        "type": "MARKET",
-        "quantity": qty_coin,
-        "leverage": leverage,
-        "timestamp": int(time.time() * 1000),
-    }
-    params["signature"] = _sign(params)
-    r = requests.post(f"{ENDPOINT}/openApi/swap/v2/trade/order", params=params)
-    r.raise_for_status()
-    order_id = r.json()["data"]["order"]["id"]
-    logging.info("🚀 %s %s MARKET qty=%s @ ~%s orderId=%s",
-                 symbol, side, qty_coin, mark, order_id)
-    return order_id, mark, qty_coin
+    # 2. Цена входа
+    if side == "BUY":
+        entry_px = float(book["bids"][0]["price"]) - math.pow(10, -price_prec)
+    else:
+        entry_px = float(book["asks"][0]["price"]) + math.pow(10, -price_prec)
+    entry_px = round(entry_px, price_prec)
 
     # 3. Объём в монетах
     mark_resp = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
