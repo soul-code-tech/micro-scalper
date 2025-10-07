@@ -26,43 +26,60 @@ def _get_precision(symbol: str) -> Tuple[int, int]:
 def _sign(params: dict) -> str:
     query = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
     return hmac.new(SECRET.encode(), query.encode(), hashlib.sha256).hexdigest()
+def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
+                sl_price: float, tp_price: float) -> Optional[Tuple[str, float, float]]:
+    price_prec, lot_prec = _get_precision(symbol)
+    print("DBG limit_entry", symbol, side, usd_qty, leverage)
 
-# ---------- стакан ----------
-try:
-    raw = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/depth",
-                       params={"symbol": public_sym, "limit": 5}, timeout=REQ_TIMEOUT)
-    raw.raise_for_status()
-    raw = raw.json()
-except Exception as e:
-    logging.warning("⚠️ %s – ошибка запроса стакана: %s", symbol, e)
-    return None
+    public_sym = symbol
 
-book = raw.get("data", {})
-if not book or "asks" not in book or "bids" not in book or not book["asks"] or not book["bids"]:
-    logging.warning("⚠️ %s – пустой стакан", symbol)
-    return None
+    # ---------- стакан ----------
+    try:
+        raw_resp = requests.get(
+            f"{ENDPOINT}/openApi/swap/v2/quote/depth",
+            params={"symbol": public_sym, "limit": 5},
+            timeout=REQ_TIMEOUT
+        )
+        raw_resp.raise_for_status()
+        raw = raw_resp.json()
+    except Exception as e:
+        logging.warning("⚠️ %s – ошибка запроса стакана: %s", symbol, e)
+        return None
 
-# ---------- марковая цена ----------
-try:
-    mark_resp = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
-                             params={"symbol": public_sym}, timeout=REQ_TIMEOUT)
-    mark_resp.raise_for_status()
-    mark_raw = mark_resp.json()
-except Exception as e:
-    logging.warning("⚠️ %s – ошибка запроса марковой цены: %s", symbol, e)
-    return None
+    book = raw.get("data", {})
+    if not book or "asks" not in book or "bids" not in book or not book["asks"] or not book["bids"]:
+        logging.warning("⚠️ %s – пустой стакан", symbol)
+        return None
 
-# проверяем структуру
-if not mark_raw or mark_raw.get("code") != 0 or "data" not in mark_raw or not mark_raw["data"]:
-    logging.warning("⚠️ %s – невалидный ответ марковой цены: %s", symbol, mark_raw)
-    return None
-mark = float(mark_raw["data"]["price"])
-    
+    # цена входа
+    if side == "BUY":
+        entry_px = float(book["bids"][0][0]) - 10 ** -price_prec
+    else:
+        entry_px = float(book["asks"][0][0]) + 10 ** -price_prec
+
+    # ---------- марковая цена ----------
+    try:
+        mark_resp = requests.get(
+            f"{ENDPOINT}/openApi/swap/v2/quote/price",
+            params={"symbol": public_sym},
+            timeout=REQ_TIMEOUT
+        )
+        mark_resp.raise_for_status()
+        mark_raw = mark_resp.json()
+    except Exception as e:
+        logging.warning("⚠️ %s – ошибка запроса марковой цены: %s", symbol, e)
+        return None
+
+    if not mark_raw or mark_raw.get("code") != 0 or "data" not in mark_raw or not mark_raw["data"]:
+        logging.warning("⚠️ %s – невалидный ответ марковой цены: %s", symbol, mark_raw)
+        return None
+    mark = float(mark_raw["data"]["price"])
+
     # 4. объём и ордер
     qty_usd = usd_qty * leverage
     qty_coin = round(qty_usd / entry_px, lot_prec)
     params = {
-        "symbol": symbol,          # ← приватный энд-поинт: без дефиса
+        "symbol": symbol,
         "side": side,
         "type": "LIMIT",
         "timeInForce": "POST_ONLY",
@@ -72,12 +89,22 @@ mark = float(mark_raw["data"]["price"])
         "timestamp": int(time.time() * 1000),
     }
     params["signature"] = _sign(params)
-    r = requests.post(f"{ENDPOINT}/openApi/swap/v2/trade/order", params=params)
-    r.raise_for_status()
-    order_id = r.json()["data"]["order"]["id"]
+
+    try:
+        r = requests.post(
+            f"{ENDPOINT}/openApi/swap/v2/trade/order",
+            params=params,
+            timeout=REQ_TIMEOUT
+        )
+        r.raise_for_status()
+        order_id = r.json()["data"]["order"]["id"]
+    except Exception as e:
+        logging.warning("⚠️ %s – не удалось разместить ордер: %s", symbol, e)
+        return None
+
     logging.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
                  symbol, side, entry_px, qty_coin, order_id)
-    print("DBG перед успехом", symbol, order_id, entry_px, qty_coin)   # ← ВОТ СЮДА         
+    print("DBG перед успехом", symbol, order_id, entry_px, qty_coin)
     return order_id, entry_px, qty_coin
     
 
