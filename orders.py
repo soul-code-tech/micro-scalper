@@ -2,19 +2,22 @@ import os, time, math, hmac, hashlib, requests, logging
 from typing import Optional, Tuple
 from settings import CONFIG
 
-logging.basicConfig(level=logging.DEBUG)   # можно добавить туда же временно
+logging.basicConfig(level=logging.DEBUG)
 
 ENDPOINT = "https://open-api.bingx.com"
 API_KEY  = os.getenv("BINGX_API_KEY")
 SECRET   = os.getenv("BINGX_SECRET_KEY")
 
+REQ_TIMEOUT = 5   # ← общий таймаут для всех запросов
+
 def _get_precision(symbol: str) -> Tuple[int, int]:
-    public_sym = symbol   # ← добавь
+    public_sym = symbol
     try:
         r = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/contracts",
-                         params={"symbol": public_sym}).json()  # ← params
-        for s in r["data"]:
-            if s["symbol"] == public_sym:          # ← сравниваем тоже с public_sym
+                         params={"symbol": public_sym}, timeout=REQ_TIMEOUT)
+        r.raise_for_status()
+        for s in r.json()["data"]:
+            if s["symbol"] == public_sym:
                 return int(s["pricePrecision"]), int(s["quantityPrecision"])
     except Exception as e:
         logging.warning("⚠️ _get_precision failed for %s: %s", symbol, e)
@@ -24,42 +27,36 @@ def _sign(params: dict) -> str:
     query = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
     return hmac.new(SECRET.encode(), query.encode(), hashlib.sha256).hexdigest()
 
-def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
-                sl_price: float, tp_price: float) -> Optional[Tuple[str, float, float]]:
-    price_prec, lot_prec = _get_precision(symbol)
-    print("DBG limit_entry", symbol, side, usd_qty, leverage)              
-
-    # 1. стакан ➜ требует -USDT
-    public_sym = symbol
+# ---------- стакан ----------
+try:
     raw = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/depth",
-                       params={"symbol": public_sym, "limit": 5}).json()
-    # ➜ ВОТ СЮДА:
-    print("RAW depth", public_sym, "→", raw)              
-    
-    book = raw.get("data", {})          # ← распаковка
-    
-    logging.info("DBG check book=%s keys=%s", book, list(book.keys()))
+                       params={"symbol": public_sym, "limit": 5}, timeout=REQ_TIMEOUT)
+    raw.raise_for_status()
+    raw = raw.json()
+except Exception as e:
+    logging.warning("⚠️ %s – ошибка запроса стакана: %s", symbol, e)
+    return None
 
-    if not book or "asks" not in book or "bids" not in book or not book["asks"] or not book["bids"]:
-        logging.warning("⚠️ %s – пустой стакан", symbol)
-        return None
-    
-    # 2. цена
-    if side == "BUY":
-        entry_px = float(book["bids"][0][0]) - math.pow(10, -price_prec)
-    else:
-        entry_px = float(book["asks"][0][0]) + math.pow(10, -price_prec)
-    
-    print("DBG перед запросом mark-price", public_sym)
-    # 3. цена маркировки ➜ тоже публичный энд-поинт
-    mark_raw = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
-                        params={"symbol": public_sym}).json()
-    if not mark_raw or "data" not in mark_raw or not mark_raw["data"]:
-        logging.warning("⚠️ %s – нет цены, пропуск", symbol)
-        print("DBG пустой стакан", symbol)
-        print("DBG перед return None – цена", mark_raw)   # ← ВОТ СЮДА
-        return None
-    mark = float(mark_raw["data"]["price"])   # цена
+book = raw.get("data", {})
+if not book or "asks" not in book or "bids" not in book or not book["asks"] or not book["bids"]:
+    logging.warning("⚠️ %s – пустой стакан", symbol)
+    return None
+
+# ---------- марковая цена ----------
+try:
+    mark_resp = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
+                             params={"symbol": public_sym}, timeout=REQ_TIMEOUT)
+    mark_resp.raise_for_status()
+    mark_raw = mark_resp.json()
+except Exception as e:
+    logging.warning("⚠️ %s – ошибка запроса марковой цены: %s", symbol, e)
+    return None
+
+# проверяем структуру
+if not mark_raw or mark_raw.get("code") != 0 or "data" not in mark_raw or not mark_raw["data"]:
+    logging.warning("⚠️ %s – невалидный ответ марковой цены: %s", symbol, mark_raw)
+    return None
+mark = float(mark_raw["data"]["price"])
     
     # 4. объём и ордер
     qty_usd = usd_qty * leverage
