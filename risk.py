@@ -10,6 +10,7 @@ class Sizing(NamedTuple):
     sl_px: float
     tp_px: float
     partial_qty: float
+    atr: float 
 
 # ------------------------------ Kelly ------------------------------
 def kelly_size(win_rate: float, avg_rr: float, equity: float, last_price: float) -> float:
@@ -64,8 +65,7 @@ def calc(entry: float, atr: float, side: str, equity: float, sym: str,
 
     # 5. частичный тейк
     partial_qty = size * CONFIG.PARTIAL_TP
-    return Sizing(size, risk_amt, sl_px, tp_px, partial_qty)
-
+    return Sizing(size, risk_amt, sl_px, tp_px, partial_qty, atr)
 # ------------------------------ стоп-аут ------------------------------
 def max_drawdown_stop(current_equity: float, peak: float) -> bool:
     if peak <= 0:
