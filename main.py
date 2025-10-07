@@ -201,7 +201,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         min_nom = CONFIG.MIN_NOTIONAL_FALLBACK
 
     # ✅ Для дешёвых монет — снижаем порог
-    if sym in ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "XRP-USDT", "BNB-USDT", "SUI-USDT"):
+    if sym in ("DOGEUSDT", "LTCUSDT", "SHIBUSDT", "XRPUSDT", "BNBUSDT", "SUIUSDT"):
         min_nom = min(CONFIG.MIN_NOTIONAL_FALLBACK * 0.5, min_nom)
 
     # ✅ Максимум: 90% × leverage
@@ -242,9 +242,10 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         # ----------  ЛИМИТНЫЙ ВХОД + OCO SL/TP  ----------
         order_data = market_entry(sym, side, sizing.usd_risk, CONFIG.LEVERAGE,
                          sizing.sl_px, sizing.tp_px)
-        if order_data is None:
-            log.info("⏭ %s – пропуск сигнала (limit_entry вернул None)", sym)
+        if order_data is None:                       # новая проверка
+            log.info("⏭ %s – пропуск (limit_entry вернул None)", sym)
             return
+        order_id, entry_px, qty_coin = order_data    # теперь safe
 
         # Теперь можно await-ить
         order_id, entry_px, qty_coin = order_data
