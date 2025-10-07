@@ -82,20 +82,28 @@ def await_fill_or_cancel(order_id: str, symbol: str, max_sec: float = 8) -> Opti
     """Ждёт fill max_sec. Возвращает avgPrice или None."""
     t0 = time.time()
     while time.time() - t0 < max_sec:
-        params = {"symbol": symbol, "orderId": order_id, "timestamp": int(time.time() * 1000)}
-        params["signature"] = _sign(params)
-        r = requests.get(f"{ENDPOINT}/openApi/swap/v2/trade/order", params=params)
-        r.raise_for_status()
-        data = r.json()["data"]
-        if data["status"] == "FILLED":
-            return float(data["avgPrice"])
+        try:
+            resp = requests.get(
+                f"{ENDPOINT}/openApi/swap/v2/trade/order",
+                params={"symbol": symbol, "orderId": order_id, "timestamp": int(time.time() * 1000)}
+            ).json()
+            resp["signature"] = _sign(resp)  # ← подпиши
+            order = resp.get("data", {})
+            if order.get("status") == "FILLED":
+                return float(order["avgPrice"])
+        except Exception as e:
+            logging.warning("⚠️  await_fill %s: %s", symbol, e)
         time.sleep(0.5)
 
     # не успели – отменяем
-    params = {"symbol": symbol, "orderId": order_id, "timestamp": int(time.time() * 1000)}
-    params["signature"] = _sign(params)
-    requests.delete(f"{ENDPOINT}/openApi/swap/v2/trade/order", params=params)
-    logging.warning("⏭ %s лимит не исполнен – отмена", symbol)
+    try:
+        requests.delete(
+            f"{ENDPOINT}/openApi/swap/v2/trade/order",
+            params={"symbol": symbol, "orderId": order_id, "timestamp": int(time.time() * 1000)}
+        ).json()
+        logging.warning("⏭ %s лимит не исполнен – отмена", symbol)
+    except Exception as e:
+        logging.warning("⚠️  await_cancel %s: %s", symbol, e)
     return None
 
 def limit_sl_tp(symbol: str, side: str, qty_coin: float, sl_price: float, tp_price: float):
