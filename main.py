@@ -357,8 +357,12 @@ async def trade_loop(ex: BingXAsync):
         for sym in CONFIG.SYMBOLS:
             if sym in api_pos:
                 continue
-            await think(ex, sym, equity)
 
+            # ✅ Добавьте задержку между символами
+            await asyncio.sleep(1)  # 1 секунда между символами
+
+            await think(ex, sym, equity)
+        
         await asyncio.sleep(20)
 
 
