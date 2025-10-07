@@ -32,7 +32,11 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     public_sym = symbol.replace("USDT", "-USDT")
     raw = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/depth",
                        params={"symbol": public_sym, "limit": 5}).json()
+    # ➜ ВОТ СЮДА:
+    print("RAW depth", public_sym, "→", raw)              
+    
     book = raw.get("data", {})          # ← распаковка
+    
     logging.info("DBG check book=%s keys=%s", book, list(book.keys()))
 
     if not book or "asks" not in book or "bids" not in book or not book["asks"] or not book["bids"]:
