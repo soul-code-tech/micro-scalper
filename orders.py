@@ -45,10 +45,9 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     
     # 2. цена
     if side == "BUY":
-        entry_px = float(book["bids"][0]["price"]) - math.pow(10, -price_prec)
+        entry_px = float(book["bids"][0][0]) - math.pow(10, -price_prec)
     else:
-        entry_px = float(book["asks"][0]["price"]) + math.pow(10, -price_prec)
-    entry_px = round(entry_px, price_prec)
+        entry_px = float(book["asks"][0][0]) + math.pow(10, -price_prec)
 
     # 3. цена маркировки ➜ тоже публичный энд-поинт
     mark_resp = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
