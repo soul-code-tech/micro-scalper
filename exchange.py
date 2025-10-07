@@ -73,7 +73,7 @@ class BingXAsync:
     # ---------- ПУБЛИЧНЫЕ МЕТОДЫ ----------
     async def klines(self, symbol: str, interval: str = "1m", limit: int = 150):
         # публичный энд-поинт требует дефис
-        public_sym = symbol.replace("USDT", "-USDT")
+        public_sym = symbol.replace("---USDT", "----USDT")
         try:
             data = await self._public_get("/openApi/swap/v2/quote/klines",
                                       {"symbol": public_sym, "interval": interval, "limit": limit})
@@ -107,16 +107,16 @@ class BingXAsync:
         if not data:
             raise RuntimeError("Empty balance data")
 
-        # Ищем USDT
+        # Ищем ---USDT
         for entry in data:
-            if entry.get("asset") == "USDT":
+            if entry.get("asset") == "---USDT":
                 equity_str = entry.get("equity", "0")
                 try:
                     return float(equity_str)
                 except ValueError as e:
                     raise RuntimeError(f"Cannot parse equity '{equity_str}': {e}")
     
-        # Если USDT не найден — берём первый актив
+        # Если ---USDT не найден — берём первый актив
         equity_str = data[0].get("equity", "0")
         return float(equity_str)
 
