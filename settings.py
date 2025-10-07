@@ -1,3 +1,7 @@
+from dataclasses import dataclass, field
+from typing import Tuple, Dict
+import os
+
 @dataclass(slots=True)
 class ScalperConfig:
     SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "SUI-USDT")
