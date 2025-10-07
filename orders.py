@@ -2,6 +2,8 @@ import os, time, math, hmac, hashlib, requests, logging
 from typing import Optional, Tuple
 from settings import CONFIG
 
+logging.basicConfig(level=logging.DEBUG)   # можно добавить туда же временно
+
 ENDPOINT = "https://open-api.bingx.com"
 API_KEY  = os.getenv("BINGX_API_KEY")
 SECRET   = os.getenv("BINGX_SECRET_KEY")
