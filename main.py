@@ -295,13 +295,13 @@ async def trade_loop(ex: BingXAsync):
 
     # в trade_loop()
     while True:
-    CYCLE += 1
-    try:
-        equity = await ex.balance()
-    except Exception as e:
-        log.error("💥 SILENT CRASH: %s", e)
-        await asyncio.sleep(5)
-        continue
+        CYCLE += 1
+        try:
+            equity = await ex.balance()
+        except Exception as e:
+            log.error("💥 SILENT CRASH: %s", e)
+            await asyncio.sleep(5)
+            continue
 
     # ---------- последовательно, не параллельно ----------
     for sym in CONFIG.SYMBOLS:
