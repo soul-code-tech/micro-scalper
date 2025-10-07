@@ -10,35 +10,39 @@ def _sign(params: dict) -> str:
     query = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
     return hmac.new(SECRET.encode(), query.encode(), hashlib.sha256).hexdigest()
 
-def _get_precision(symbol: str) -> Tuple[int, int]:
-    """price_precision, lot_precision"""
-    r = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/contracts").json()
-    for s in r["data"]:
-        if s["symbol"] == symbol:
-            return int(s["pricePrecision"]), int(s["quantityPrecision"])
-    return 4, 3  # fallback
-
 def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
                 sl_price: float, tp_price: float) -> Optional[str]:
-    """Возвращает orderId лимитного входа или None если не удалось."""
+    """Возвращает (orderId, entry_px, qty_coin) или None."""
     price_prec, lot_prec = _get_precision(symbol)
 
-    # 1. цена maker-входа
+    # 1. Читаем стакан
     book = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/depth",
                         params={"symbol": symbol, "limit": 5}).json()
+
+    # ✅ Проверка ДО доступа к asks/bids
+    if not book or "asks" not in book or "bids" not in book or not book["asks"] or not book["bids"]:
+        logging.warning("⚠️ %s – нет стакана, пропуск", symbol)
+        return None
+
+    # 2. Цена входа
     if side == "BUY":
         entry_px = float(book["bids"][0]["price"]) - math.pow(10, -price_prec)
     else:
         entry_px = float(book["asks"][0]["price"]) + math.pow(10, -price_prec)
     entry_px = round(entry_px, price_prec)
 
-    # 2. объём в монетах
-    mark = float(requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
-                              params={"symbol": symbol}).json()["price"])
+    # 3. Объём в монетах
+    mark_resp = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
+                             params={"symbol": symbol}).json()
+    if not mark_resp or "price" not in mark_resp:
+        logging.warning("⚠️ %s – нет цены маркировки, пропуск", symbol)
+        return None
+
+    mark = float(mark_resp["price"])
     qty_usd = usd_qty * leverage
     qty_coin = round(qty_usd / entry_px, lot_prec)
 
-    # 3. ставим лимитный вход
+    # 4. Ордер
     params = {
         "symbol": symbol,
         "side": side,
