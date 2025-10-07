@@ -6,6 +6,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.dummy import DummyClassifier
 from sklearn.metrics import accuracy_score
+# ------------------  ДОБАВЬТЕ СТРОКУ  ------------------
+from orders import limit_entry, await_fill_or_cancel, limit_sl_tp
+# -------------------------------------------------------
 import joblib
 
 N_LAG = 5
