@@ -304,7 +304,7 @@ async def trade_loop(ex: BingXAsync):
 
     while True:
         CYCLE += 1
-        # ---------- одна попытка баланса ----------
+
         try:
             equity = await ex.balance()
         except Exception as e:
@@ -312,21 +312,27 @@ async def trade_loop(ex: BingXAsync):
             await asyncio.sleep(10)
             continue
 
-        # ---------- последовательный обход пар ----------
+        if equity > PEAK_BALANCE or PEAK_BALANCE == 0:
+            PEAK_BALANCE = equity
+
+        # --- Получаем позиции ---
         try:
-            api_pos = {p["symbol"]: p for p in (await ex.fetch_positions())["data"]}
-            # ручной сброс, если биржа показывает 0
-            for sym in list(POS.keys()):
-                if sym not in api_pos or float(api_pos.get(sym, {}).get("positionAmt", 0)) == 0:
-                    POS.pop(sym, None)
-                    OPEN_ORDERS.pop(sym, None)
-                    await ex.cancel_all(sym)
-                    log.info("🧹 %s сброшена (нет на бирже)", sym)
+            raw_pos = (await ex.fetch_positions())["data"]
+            api_pos = {p["symbol"]: p for p in raw_pos}
         except Exception as e:
-            log.error("Ошибка сброса позиций: %s", e)
+            log.error("❌ fetch_positions fail: %s", e)
             await asyncio.sleep(10)
             continue
 
+        # --- Синхронизация локальных позиций ---
+        for sym in list(POS.keys()):
+            if sym not in api_pos or float(api_pos.get(sym, {}).get("positionAmt", 0)) == 0:
+                POS.pop(sym, None)
+                OPEN_ORDERS.pop(sym, None)
+                await ex.cancel_all(sym)
+                log.info("🧹 %s сброшена (нет на бирже)", sym)
+
+        # --- Управление или открытие ---
         for sym in CONFIG.SYMBOLS:
             try:
                 if sym in api_pos and float(api_pos[sym]["positionAmt"]) != 0:
@@ -335,37 +341,40 @@ async def trade_loop(ex: BingXAsync):
                     await think(ex, sym, equity)
             except Exception as e:
                 log.warning("❌ %s cycle error: %s", sym, e)
-            await asyncio.sleep(10)   # 1 с между парами
-        # ---------- сводный PnL ----------
-    if CYCLE % 20 == 0:   # каждые 20 циклов (~20 мин)
-        total_pnl = 0.0   # ← ОБЪЯВЛЯЕМ СРАЗУ
-        try:
-            for sym in list(POS.keys()):
-                mark = float((await ex.fetch_positions())["data"][0]["markPrice"]) if sym == list(POS.keys())[0] else float((await ex.fetch_positions())["data"][[p["symbol"] for p in (await ex.fetch_positions())["data"]].index(sym)]["markPrice"])
-                pos = POS[sym]
-                fee = pos["qty"] * mark * 0.001
-                pnl = (mark - pos["entry"]) * pos["qty"] * (1 if pos["side"] == "LONG" else -1) - fee
-                total_pnl += pnl
-        except Exception as e:
-            log.warning("❌ не смог рассчитать total_pnl: %s", e)
+            await asyncio.sleep(1)
+
+        # ✅ ВСЁ ЭТО ДОЛЖНО БЫТЬ ВНУТРИ ЦИКЛА
+        if CYCLE % 20 == 0:
             total_pnl = 0.0
+            try:
+                for sym in POS.values():
+                    mark = float(api_pos[sym]["markPrice"])
+                    fee = pos["qty"] * mark * 0.001
+                    pnl = (mark - pos["entry"]) * pos["qty"] * (1 if pos["side"] == "LONG" else -1) - fee
+                    total_pnl += pnl
+            except Exception as e:
+                log.warning("⚠️ Не удалось рассчитать PnL: %s", e)
 
-        if total_pnl > equity * 0.02:   # +2 % от депозита
-            log.info("💰 TOTAL PnL = %.2f$  > 2%% equity – закрываю всё", total_pnl)
-            for sym in list(POS.keys()):
-                await ex.close_position(sym, "SELL" if POS[sym]["side"] == "LONG" else "BUY", POS[sym]["qty"])
-                POS.pop(sym, None)
-                await ex.cancel_all(sym)
+            if total_pnl > equity * 0.02:
+                log.info("💰 TOTAL PnL = %.2f$ > 2%% – закрываю все позиции", total_pnl)
+                for s in list(POS.keys()):
+                    side = "SELL" if POS[s]["side"] == "LONG" else "BUY"
+                    await ex.close_position(s, side, POS[s]["qty"])
+                    POS.pop(s, None)
+                    await ex.cancel_all(s)
+                log.info("✅ Все позиции закрыты по общему PnL")
 
-        # ---------- метки жизни ----------
+        # 💓 ALIVE
         if CYCLE % 10 == 0:
             log.info("💓 ALIVE  cycle=%d  POS=%d  EQ=%.2f$", CYCLE, len(POS), equity)
+
+        # 📊 Сводка
         if CYCLE % 15 == 0:
             dd = (PEAK_BALANCE - equity) / PEAK_BALANCE * 100 if PEAK_BALANCE else 0.0
             log.info("📊 EQ:%.2f $  Peak:%.2f $  DD:%.2f%%  POS:%d  ORD:%d",
                      equity, PEAK_BALANCE, dd, len(POS), len(OPEN_ORDERS))
 
-        await asyncio.sleep(15)   # ≈ 60 с на весь цикл
+        await asyncio.sleep(15)
 
 async def main():
     asyncio.create_task(start_health())
