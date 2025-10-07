@@ -343,17 +343,25 @@ async def trade_loop(ex: BingXAsync):
                 log.warning("❌ %s cycle error: %s", sym, e)
             await asyncio.sleep(1)
 
-        # ✅ ВСЁ ЭТО ДОЛЖНО БЫТЬ ВНУТРИ ЦИКЛА
+        # 💰 Total PnL — закрыть всё при +2%
         if CYCLE % 20 == 0:
             total_pnl = 0.0
             try:
-                for sym in POS.values():
+                # Мы уже получили api_pos выше!
+                for sym in POS:
+                    pos = POS[sym]
+                    if sym not in api_pos:
+                        continue
                     mark = float(api_pos[sym]["markPrice"])
                     fee = pos["qty"] * mark * 0.001
-                    pnl = (mark - pos["entry"]) * pos["qty"] * (1 if pos["side"] == "LONG" else -1) - fee
+                    pnl = (mark - pos["entry"]) * pos["qty"]
+                    if pos["side"] == "SHORT":
+                        pnl *= -1
+                    pnl -= fee
                     total_pnl += pnl
             except Exception as e:
-                log.warning("⚠️ Не удалось рассчитать PnL: %s", e)
+                log.warning("⚠️  Не смог рассчитать PnL: %s", e)
+                total_pnl = 0.0
 
             if total_pnl > equity * 0.02:
                 log.info("💰 TOTAL PnL = %.2f$ > 2%% – закрываю все позиции", total_pnl)
