@@ -194,7 +194,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         log.info("⏭️  %s max pos reached", sym)
         return
     if sym in POS:
-    log.info("⏭️ %s already in POS – skip", sym)
+        log.info("⏭️ %s already in POS – skip", sym)
         return
 
     # ✅ Расчёт размера
