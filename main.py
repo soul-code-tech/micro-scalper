@@ -201,7 +201,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         min_nom = CONFIG.MIN_NOTIONAL_FALLBACK
 
     # ✅ Для дешёвых монет — снижаем порог
-    if sym in ("DOGEUSDT", "LTCUSDT", "SHIBUSDT", "XRPUSDT", "BNBUSDT", "SUIUSDT"):
+    if sym in ("DOGE--USDT", "LTC--USDT", "SHIB--USDT", "XRP--USDT", "BNB--USDT", "SUI--USDT"):
         min_nom = min(CONFIG.MIN_NOTIONAL_FALLBACK * 0.5, min_nom)
 
     # ✅ Максимум: 90% × leverage
