@@ -125,20 +125,18 @@ class BingXAsync:
     
     async def place_order(self, symbol: str, position_side: str, order_type: str,
                           quantity: float, price: Optional[float] = None,
-                          time_in_force: str = "GTC"):
-        """
-        position_side: "LONG" / "SHORT" — для positionSide
-        order_type: "LIMIT" / "MARKET"
-        """
-        order_side = "BUY" if position_side == "LONG" else "SELL"  # ← перевод в BUY/SELL
+                          post_only: bool = False):
+        order_side = "BUY" if position_side == "LONG" else "SELL"
+        time_in_force = "PostOnly" if post_only else "GTC"
+
         payload = {
             "symbol": symbol,
-            "side": order_side,                           # ← BUY / SELL
+            "side": order_side,
             "type": order_type.upper(),
             "quantity": f"{quantity:.3f}",
             "price": f"{price:.8f}" if price is not None else None,
             "timeInForce": time_in_force,
-            "positionSide": position_side,                # ← LONG / SHORT
+            "positionSide": position_side,
         }
         payload = {k: v for k, v in payload.items() if v is not None}
         return await self._signed_request("POST", "/openApi/swap/v2/trade/order", payload)
