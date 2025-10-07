@@ -251,8 +251,9 @@ async def think(ex: BingXAsync, sym: str, equity: float):
        
         # Теперь можно await-ить
         order_id, entry_px, qty_coin = order_data
-
+        print("DBG перед await_fill_or_cancel", order_id, sym)
         avg_px = await await_fill_or_cancel(order_id, sym, max_sec=8)
+        print("DBG после await_fill_or_cancel", avg_px)
         if avg_px is None:                       # не успели за 8 с
             return
 
