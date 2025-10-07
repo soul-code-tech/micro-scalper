@@ -219,9 +219,11 @@ async def think(ex: BingXAsync, sym: str, equity: float):
                  sym, sizing.size * px, min_nom, new_size, min_nom)
         sizing = Sizing(
             size=new_size,
+            usd_risk=sizing.usd_risk,  # ← добавь
             sl_px=sizing.sl_px,
             tp_px=sizing.tp_px,
-            partial_qty=new_size * CONFIG.PARTIAL_TP
+            partial_qty=new_size * CONFIG.PARTIAL_TP,
+            atr=sizing.atr  # ← добавь
         )
 
     # ✅ FLOW-OK — все условия пройдены
