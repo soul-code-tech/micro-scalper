@@ -248,7 +248,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
             log.info("⏭ %s – пропуск (limit_entry вернул None)", sym)
             return
         order_id, entry_px, qty_coin = order_data    # теперь safe
-
+       
         # Теперь можно await-ить
         order_id, entry_px, qty_coin = order_data
 
