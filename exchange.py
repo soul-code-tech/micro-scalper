@@ -77,10 +77,10 @@ class BingXAsync:
         try:
             data = await self._public_get("/openApi/swap/v2/quote/klines",
                                       {"symbol": public_sym, "interval": interval, "limit": limit})
-        return data["data"]
-    except Exception as e:
-        log.warning("❌ %s klines fail: %s", symbol, e)
-        return []
+            return data["data"]
+        except Exception as e:
+            log.warning("❌ %s klines fail: %s", symbol, e)
+            return []
 
     async def order_book(self, symbol: str, limit: int = 5):
         # ✅ ВАЛИДАЦИЯ limit — только разрешённые значения
