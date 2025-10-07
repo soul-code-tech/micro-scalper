@@ -331,7 +331,7 @@ async def trade_loop(ex: BingXAsync):
                     await think(ex, sym, equity)
             except Exception as e:
                 log.warning("❌ %s cycle error: %s", sym, e)
-            await asyncio.sleep(1)
+            await asyncio.sleep(30)
 
         # 💰 Total PnL — закрыть всё при +2%
         if CYCLE % 20 == 0:
