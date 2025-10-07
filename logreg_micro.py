@@ -3,7 +3,7 @@ import os, pickle, pandas as pd, numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 
-MODEL_FILE = "weights/BTCUSDT.pkl"
+MODEL_FILE = "weights/BTC-USDT.pkl"
 N_FEAT = 4
 
 def make_dataset(klines: list, lookback=20):
