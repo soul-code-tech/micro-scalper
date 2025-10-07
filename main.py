@@ -336,21 +336,25 @@ async def trade_loop(ex: BingXAsync):
                 log.warning("❌ %s cycle error: %s", sym, e)
             await asyncio.sleep(10)   # 1 с между парами
         # ---------- сводный PnL ----------
-        if CYCLE % 20 == 0:   # каждые 20 циклов (~20 мин)
-            total_pnl = 0.0
-            for sym, p in POS.items():
-                mark = await ex.mark_price(sym)
-                fee = p["qty"] * mark * 0.001
-                pnl = (mark - p["entry"]) * p["qty"] * (1 if p["side"] == "LONG" else -1) - fee
+    if CYCLE % 20 == 0:   # каждые 20 циклов (~20 мин)
+        total_pnl = 0.0   # ← ОБЪЯВЛЯЕМ СРАЗУ
+        try:
+            for sym in list(POS.keys()):
+                mark = float((await ex.fetch_positions())["data"][0]["markPrice"]) if sym == list(POS.keys())[0] else float((await ex.fetch_positions())["data"][[p["symbol"] for p in (await ex.fetch_positions())["data"]].index(sym)]["markPrice"])
+                pos = POS[sym]
+                fee = pos["qty"] * mark * 0.001
+                pnl = (mark - pos["entry"]) * pos["qty"] * (1 if pos["side"] == "LONG" else -1) - fee
                 total_pnl += pnl
+        except Exception as e:
+            log.warning("❌ не смог рассчитать total_pnl: %s", e)
+            total_pnl = 0.0
+
         if total_pnl > equity * 0.02:   # +2 % от депозита
-            log.info("💰 %s EXIT  qty=%.3f  entry=%s  exit=%s  fee=%.4f$  net=%.4f$",
-                 sym, pos["qty"], human_float(pos["entry"]), human_float(mark),
-                 fee, pnl)
+            log.info("💰 TOTAL PnL = %.2f$  > 2%% equity – закрываю всё", total_pnl)
             for sym in list(POS.keys()):
                 await ex.close_position(sym, "SELL" if POS[sym]["side"] == "LONG" else "BUY", POS[sym]["qty"])
                 POS.pop(sym, None)
-                await ex.cancel_all(sym)    
+                await ex.cancel_all(sym)
 
         # ---------- метки жизни ----------
         if CYCLE % 10 == 0:
