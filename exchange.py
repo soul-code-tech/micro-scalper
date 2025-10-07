@@ -72,13 +72,15 @@ class BingXAsync:
 
     # ---------- ПУБЛИЧНЫЕ МЕТОДЫ ----------
     async def klines(self, symbol: str, interval: str = "1m", limit: int = 150):
+        # публичный энд-поинт требует дефис
+        public_sym = symbol.replace("USDT", "-USDT")
         try:
             data = await self._public_get("/openApi/swap/v2/quote/klines",
-                                          {"symbol": symbol, "interval": interval, "limit": limit})
-            return data["data"]
-        except Exception as e:
-            log.warning("❌ %s klines fail: %s", symbol, e)
-            return []
+                                      {"symbol": public_sym, "interval": interval, "limit": limit})
+        return data["data"]
+    except Exception as e:
+        log.warning("❌ %s klines fail: %s", symbol, e)
+        return []
 
     async def order_book(self, symbol: str, limit: int = 5):
         # ✅ ВАЛИДАЦИЯ limit — только разрешённые значения
