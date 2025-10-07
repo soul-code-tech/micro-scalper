@@ -49,7 +49,8 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
         entry_px = float(book["bids"][0][0]) - math.pow(10, -price_prec)
     else:
         entry_px = float(book["asks"][0][0]) + math.pow(10, -price_prec)
-
+    
+    print("DBG перед запросом mark-price", public_sym)
     # 3. цена маркировки ➜ тоже публичный энд-поинт
     mark_raw = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/price",
                         params={"symbol": public_sym}).json()
