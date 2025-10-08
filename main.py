@@ -122,15 +122,14 @@ async def manage_position(ex: BingXAsync, symbol: str, api_pos: dict):
     mark = float(api_pos["markPrice"])
     side = pos["side"]                      # ← добавить
     risk_dist = abs(pos["entry"] - pos["sl_orig"])  # ← добавить
-    equity = await ex.balance()          # берём актуальный баланс
-    dd = (PEAK_BALANCE - equity) / PEAK_BALANCE * 100
-    if dd > CONFIG.MAX_DD_STOP:          # 10 %
-        log.warning(f"🛑 MAX_DD_STOP {dd:.2f}% – закрываю {symbol}")
-        await ex.close_position(symbol,
-                                "SELL" if pos["side"] == "LONG" else "BUY",
-                                pos["qty"])
-        POS.pop(symbol, None)
-        return
+    # ---------- ЖЁСТКИЙ 10 % стоп ----------
+    if not pos.get("sl_10_done"):
+        sl_10 = pos["entry"] * (0.90 if side == "LONG" else 1.10)
+        if (side == "LONG" and mark <= sl_10) or (side == "SHORT" and mark >= sl_10):
+            await ex.close_position(symbol, "SELL" if side == "LONG" else "BUY", pos["qty"])
+            POS.pop(symbol, None)
+            log.info("🛑 %s 10%% SL triggered at %.5f", symbol, mark)
+            return
     
     # TP1: 60% при достижении 1.4×ATR
     if not pos.get("tp1_done"):
@@ -344,6 +343,8 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
             atr=sizing.atr,
             tp1_done=False,
             breakeven_done=False,
+            sl_10_done=False,        # ← добавить
+            tp_fast_done=False,      # ← если ещё нет
         )
         log.info(f"📨 {symbol} {side} {qty_coin:.6f} @ {avg_px:.5f} SL={sizing.sl_px:.5f} TP={sizing.tp_px:.5f}")
 
