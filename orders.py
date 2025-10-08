@@ -106,8 +106,7 @@ async def limit_entry(ex: BingXAsync,
             log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
             return None
     log.debug("RAW RESP: %s", resp)
-    order_id = resp["data"]["order"]["id"]
-
+    
     order_id = resp["data"]["order"]["id"]
     log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
              symbol, side, entry_px_str, qty_coin_str, order_id)
