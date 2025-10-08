@@ -3,8 +3,8 @@ import os
 import time
 import math
 import logging
+import requests
 from typing import Optional, Tuple
-
 from exchange import BingXAsync
 from settings import CONFIG
 
@@ -44,9 +44,15 @@ async def limit_entry(ex: BingXAsync,
     price_prec, lot_prec = _get_precision(symbol)
 
     # ---------- мин-лот и шаг ----------
-    info = await ex.get_contract_info(symbol)
-    min_qty   = float(info["data"][0]["minQty"])
-    step_size = float(info["data"][0]["stepSize"])
+    try:
+        info = await ex.get_contract_info(symbol)
+        data0 = info["data"][0]
+        min_qty   = float(data0.get("minQty", 149006.0))
+        step_size = float(data0.get("stepSize", 1.0))
+    except Exception as e:
+        log.warning("⚠️ %s – не смог получить minQty/stepSize: %s", symbol, e)
+        min_qty   = 149006.0
+        step_size = 1.0
 
     # ---------- стакан ----------
     book = await ex.order_book(symbol, limit=5)
