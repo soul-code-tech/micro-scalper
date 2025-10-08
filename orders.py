@@ -10,6 +10,14 @@ SECRET   = os.getenv("BINGX_SECRET_KEY")
 
 REQ_TIMEOUT = 5   # ← общий таймаут для всех запросов
 
+def _private_request(method: str, endpoint: str, params: dict) -> dict:
+    params["timestamp"] = int(time.time() * 1000)
+    params["signature"] = _sign(params)
+    headers = {"X-BX-APIKEY": API_KEY}
+    r = requests.request(method, ENDPOINT + endpoint, params=params, headers=headers, timeout=REQ_TIMEOUT)
+    r.raise_for_status()
+    return r.json()
+
 def _get_precision(symbol: str) -> Tuple[int, int]:
     public_sym = symbol
     try:
@@ -26,6 +34,7 @@ def _get_precision(symbol: str) -> Tuple[int, int]:
 def _sign(params: dict) -> str:
     query = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
     return hmac.new(SECRET.encode(), query.encode(), hashlib.sha256).hexdigest()
+
 def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
                 sl_price: float, tp_price: float) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
@@ -90,15 +99,10 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     }
     params["signature"] = _sign(params)
 
+    # ---------- размещение ордера ----------
     try:
-        r = requests.post(
-            f"{ENDPOINT}/openApi/swap/v2/trade/order",
-            params=params,
-            timeout=REQ_TIMEOUT
-        )
-        r.raise_for_status()
-        resp = r.json()
-        print("DBG order response", symbol, resp)  # ← покажет, что пришло
+        resp = _private_request("POST", "/openApi/swap/v2/trade/order", params)
+        print("DBG order response", symbol, resp)
         if not resp or resp.get("code") != 0 or "data" not in resp or not resp["data"] or "order" not in resp["data"]:
             logging.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
             return None
@@ -115,32 +119,29 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
 
 def await_fill_or_cancel(order_id: str, symbol: str, max_sec: float = 8) -> Optional[float]:
     t0 = time.time()
-    print("DBG await_fill_or_cancel", symbol, order_id)   # ← добавь
+    print("DBG await_fill_or_cancel", symbol, order_id)
     while time.time() - t0 < max_sec:
+        # ---------- проверка статуса ----------
         try:
-            resp = requests.get(
-                f"{ENDPOINT}/openApi/swap/v2/trade/order",
-                params={"symbol": symbol, "orderId": order_id, "timestamp": int(time.time() * 1000)}
-            ).json()
-            print("DBG await resp", resp)   # ← добавь
+            resp = _private_request("GET", "/openApi/swap/v2/trade/order",
+                                    {"symbol": symbol, "orderId": order_id})
             order = resp.get("data", {})
             if order.get("status") == "FILLED":
                 return float(order["avgPrice"])
         except Exception as e:
-            print("DBG await exception", e)   # ← добавь
+            print("DBG await exception", e)
             logging.warning("⚠️  await_fill %s: %s", symbol, e)
         time.sleep(0.5)
 
     # не успели – отменяем
     try:
-        requests.delete(
-            f"{ENDPOINT}/openApi/swap/v2/trade/order",
-            params={"symbol": symbol, "orderId": order_id, "timestamp": int(time.time() * 1000)}
-        ).json()
+        _private_request("DELETE", "/openApi/swap/v2/trade/order",
+                         {"symbol": symbol, "orderId": order_id})
         logging.warning("⏭ %s лимит не исполнен – отмена", symbol)
     except Exception as e:
         logging.warning("⚠️  await_cancel %s: %s", symbol, e)
     return None
+   
 
 def limit_sl_tp(symbol: str, side: str, qty_coin: float, sl_price: float, tp_price: float):
     """Создаёт 2 лимитных ордера (SL и TP) одновременно."""
@@ -155,7 +156,5 @@ def limit_sl_tp(symbol: str, side: str, qty_coin: float, sl_price: float, tp_pri
             "quantity": qty_coin,
             "timestamp": int(time.time() * 1000),
         }
-        params["signature"] = _sign(params)
-        r = requests.post(f"{ENDPOINT}/openApi/swap/v2/trade/order", params=params)
-        r.raise_for_status()
+        resp = _private_request("POST", "/openApi/swap/v2/trade/order", params)
         logging.info("🛑 %s %s limit @ %s", name, symbol, px)
