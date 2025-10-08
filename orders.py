@@ -57,18 +57,35 @@ def _get_precision(symbol: str) -> Tuple[int, int]:
 async def limit_entry(ex: BingXAsync,
                       symbol: str,
                       side: str,
-                      qty_coin: float,   # ← готовое кол-во монет
-                      entry_px: float,   # ← цена входа
+                      qty_coin: float,
+                      entry_px: float,
                       sl_price: float,
                       tp_price: float) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
 
-    # ---------- округляем до шага ----------
+    book = await ex.order_book(symbol, limit=5)
+    if not book or not book.get("bids") or not book.get("asks"):
+        log.warning("⚠️ %s – пустой стакан", symbol)
+        return None
+
+    tick = 10 ** -price_prec
+    if side == "BUY":
+        entry_px = float(book["bids"][0][0]) - tick * 2
+    else:
+        entry_px = float(book["asks"][0][0]) + tick * 2
+
     min_qty, step_size = get_min_lot(symbol)
     qty_coin = max(qty_coin, min_qty)
     qty_coin = math.ceil(qty_coin / step_size) * step_size
 
-    # ---------- строки ----------
+    nominal_usd = qty_coin * entry_px
+    equity = await ex.balance()
+    max_allowed = min(1_200_000.0, equity * CONFIG.LEVERAGE * 0.95)
+    if nominal_usd > max_allowed:
+        qty_coin = max_allowed / entry_px
+        qty_coin = max(qty_coin, min_qty)
+        qty_coin = math.ceil(qty_coin / step_size) * step_size
+
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
     qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
 
