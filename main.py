@@ -285,10 +285,11 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
         # Лимитный вход + OCO SL/TP
         order_data = await limit_entry(ex, symbol,
                                        "BUY" if side == "LONG" else "SELL",
-                                       sizing.size,        # ← готовое кол-во монет
-                                       px,                   # ← цена входа
+                                       sizing.size,
+                                       px,
                                        sizing.sl_px,
-                                       sizing.tp_px)
+                                       sizing.tp_px,
+                                       equity)          # ← добавить
         if order_data is None:
             log.info(f"⏭ {symbol} – пропуск (limit_entry вернул None)")
             return
