@@ -47,13 +47,16 @@ async def limit_entry(ex: BingXAsync,
     try:
         info = await ex.get_contract_info(symbol)
         data0 = info["data"][0]
-        min_qty   = float(data0.get("minQty", 149006.0))
+        min_qty   = float(data0.get("minQty", 149068.0))   # ← новый дефолт
         step_size = float(data0.get("stepSize", 1.0))
     except Exception as e:
         log.warning("⚠️ %s – не смог получить minQty/stepSize: %s", symbol, e)
-        min_qty   = 149006.0
+        min_qty   = 149068.0   # ← актуальный минимум из ошибки
         step_size = 1.0
 
+    # ---------- корректировка quantity ----------
+    qty_coin = max(qty_coin, min_qty)
+    qty_coin = math.ceil(qty_coin / step_size) * step_size
     # ---------- стакан ----------
     book = await ex.order_book(symbol, limit=5)
     if not book or not book.get("bids") or not book.get("asks"):
