@@ -63,50 +63,14 @@ async def limit_entry(ex: BingXAsync,
                       tp_price: float) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
 
-    # ---------- стакан ----------
-    book = await ex.order_book(symbol, limit=5)
-    if not book or not book.get("bids") or not book.get("asks"):
-        log.warning("⚠️ %s – пустой стакан", symbol)
-        return None
-
-    if side == "BUY":
-        entry_px = float(book["bids"][0][0]) - 10 ** -price_prec
-    else:
-        entry_px = float(book["asks"][0][0]) + 10 ** -price_prec
-
-    # ---------- объём ----------
-    qty_usd  = usd_qty * leverage
-    qty_coin = round(qty_usd / entry_px, lot_prec)
-
-    
     # ---------- округляем до шага ----------
     min_qty, step_size = get_min_lot(symbol)
     qty_coin = max(qty_coin, min_qty)
     qty_coin = math.ceil(qty_coin / step_size) * step_size
 
-
-    # ---------- корректировка ----------
-    qty_coin = max(qty_coin, min_qty)
-    qty_coin = math.ceil(qty_coin / step_size) * step_size
-
-   
-    # ---------- проверка лимита номинала ----------
-    log.debug("DEBUG: qty_coin_str=%s, entry_px_str=%s", qty_coin_str, entry_px_str)                      
-    nominal_usd = float(qty_coin_str) * float(entry_px_str)
-    log.debug("DEBUG: nominal_usd=%.4f", nominal_usd)                      
-    max_nominal = 600_000.0
-    if nominal_usd > max_nominal:
-        new_leverage = max(1, int(max_nominal / nominal_usd))
-        log.warning("♻️ %s nominal %.2f$ > max %.0f$ – понижаю плечо до %d×",
-                    symbol, nominal_usd, max_nominal, new_leverage)
-        leverage = new_leverage
-        # пересчитываем всё под новое плечо
-        qty_usd  = usd_qty * leverage
-        qty_coin = round(qty_usd / entry_px, lot_prec)
-        qty_coin = max(qty_coin, min_qty)
-        qty_coin = math.ceil(qty_coin / step_size) * step_size
-        qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
-        entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
+    # ---------- строки ----------
+    entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
+    qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
 
     params = {
         "symbol":       symbol,
@@ -119,14 +83,13 @@ async def limit_entry(ex: BingXAsync,
     }
 
     resp = await ex._signed_request("POST", "/openApi/swap/v2/trade/order", params)
-    if resp.get("code") != 0 or "data" not in resp or "order" not in resp["data"]:
+    if resp.get("code") != 0:
         log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
         return None
-    log.debug("RAW RESP: %s", resp)
     order_id = resp["data"]["order"]["id"]
     log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
              symbol, side, entry_px_str, qty_coin_str, order_id)
-    return order_id, float(entry_px_str), float(qty_coin_str)
+    return order_id, float(entry_px_str), float(qty_coin)
 
 # --------------------  ОЖИДАНИЕ / ОТМЕНА  --------------------
 async def await_fill_or_cancel(ex: BingXAsync,
