@@ -14,9 +14,8 @@ REQ_TIMEOUT = 5   # ← общий таймаут для всех запросо
 def _private_request(method: str, endpoint: str, params: dict) -> dict:
     params = params.copy()
     params["timestamp"] = int(time.time() * 1000)
-    params["signature"] = _sign(params)
+    params["signature"] = _sign(params)   # ← добавляем ПОСЛЕ
 
-    # ← маяки
     query_str = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
     print(f"=== MAYAK ===")
     print(f"METHOD : {method}")
@@ -29,8 +28,7 @@ def _private_request(method: str, endpoint: str, params: dict) -> dict:
     r = requests.request(method, url, params=params, headers=headers, timeout=REQ_TIMEOUT)
 
     print(f"STATUS : {r.status_code}")
-    print(f"HEADERS: {dict(r.headers)}")
-    print(f"TEXT   : {r.text[:300]}")   # первые 300 символов ответа
+    print(f"TEXT   : {r.text[:300]}")
     print(f"=== END MAYAK ===")
 
     r.raise_for_status()
@@ -116,18 +114,19 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     # ← убираем дефис для private endpoints
     symbol_private = symbol.replace("-", "")
 
+    # ← signature НЕ добавляем сюда
     params = {
-        "symbol": symbol_private,          # ← используем СЮДА
+        "symbol": symbol_private,
         "side": side,
         "type": "LIMIT",
         "timeInForce": "POST_ONLY",
         "price": entry_px,
         "quantity": qty_coin,
         "leverage": leverage,
-        "timestamp": int(time.time() * 1000),
+    # ← без timestamp и signature
     }
-    params["signature"] = _sign(params)
-    print("DBG params", params)
+    # signature добавит _private_request САМ
+    resp = _private_request("POST", "/openApi/swap/v2/trade/order", params)
     print("DBG query", "&".join(f"{k}={v}" for k, v in sorted(params.items())))
     # ---------- размещение ордера ----------
     try:
