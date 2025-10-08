@@ -94,7 +94,10 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     qty_coin = round(qty_coin, lot_prec)
     if qty_coin <= 0:
         logging.warning("⚠️ %s – quantity ≤ 0", symbol)
-        return None                
+        return None 
+    # ← убираем экспоненту
+    entry_px = format(entry_px, f".{price_prec}f")  # '0.00001226'
+    qty_coin = format(qty_coin, f".{lot_prec}f")    # '8153.0'   
     params = {
         "symbol": symbol,
         "side": side,
