@@ -127,7 +127,6 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     }
     # signature добавит _private_request САМ
     resp = _private_request("POST", "/openApi/swap/v2/trade/order", params)
-    print("DBG query", "&".join(f"{k}={v}" for k, v in sorted(params.items())))
     # ---------- размещение ордера ----------
     try:
         resp = _private_request("POST", "/openApi/swap/v2/trade/order", params)
