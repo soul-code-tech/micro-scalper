@@ -15,6 +15,8 @@ from risk import calc, max_drawdown_stop, Sizing
 from tf_selector import best_timeframe
 from health_aio import start_health
 
+# ---------- общий пул потоков ----------
+EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 # Инициализация глобальных переменных
 POS: Dict[str, Dict] = {}
 OPEN_ORDERS: Dict[str, str] = {}
@@ -34,7 +36,7 @@ logging.basicConfig(
 log = logging.getLogger("scalper")
 
 async def main():
-    global _MIN_LOT_CACHE
+    global PEAK_BALANCE, CYCLE, _MIN_LOT_CACHE   # ← добавьте
     
     # Валидация переменных окружения
     validate_env()
@@ -92,7 +94,7 @@ async def main():
                 
                 # Проверка общего PnL
                 if CYCLE % 20 == 0:
-                    await check_total_pnl(ex)
+                    await check_total_pnl(ex, equity)   # ← добавить параметр
                 
                 # Логирование статуса
                 if CYCLE % 10 == 0:
@@ -165,7 +167,7 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
     # Проверяем, есть ли уже открытый ордер по этому символу
     if OPEN_ORDERS.get(symbol):
         try:
-            oo = await ex.fetch_order(symbol, OPEN_ORDERS[sym])
+            oo = await ex.fetch_order(symbol, OPEN_ORDERS[symbol])
             status = oo.get("data", {}).get("status", "")
             if status == "FILLED":
                 OPEN_ORDERS.pop(symbol, None)
@@ -319,7 +321,7 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
         )
         log.info(f"📨 {symbol} {side} {qty_coin:.6f} @ {avg_px:.5f} SL={sizing.sl_px:.5f} TP={sizing.tp_px:.5f}")
 
-async def check_total_pnl(ex: BingXAsync):
+async def check_total_pnl(ex: BingXAsync, equity: float):
     """Проверяет общий PnL и закрывает все позиции при +2%"""
     total_pnl = 0.0
     try:
