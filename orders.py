@@ -78,16 +78,21 @@ async def limit_entry(ex: BingXAsync,
     # ---------- округляем до шага ----------
     min_qty, step_size = get_min_lot(symbol)
 
-    # ---------- макс. кол-во монет под маржу ----------
-    max_nom = equity * CONFIG.LEVERAGE * 0.95
-    max_coins_raw = max_nom / entry_px
-    qty_coin = min(qty_coin, max_coins_raw)        # ← режем ДО округления
+    # ---------- макс. номинал под текущий депозит ----------
+    max_nom = equity * CONFIG.LEVERAGE * 0.90   # 180 USDT при 10×20
+    max_coins = max_nom / entry_px
+    qty_coin = min(qty_coin, max_coins)         # ← режем ДО округления
+
+    # ---------- мин. номинал ----------
+    min_nom = 1.0                               # ваш лимит
+    if qty_coin * entry_px < min_nom:
+        qty_coin = min_nom / entry_px
 
     qty_coin = max(qty_coin, min_qty)
     qty_coin = math.ceil(qty_coin / step_size) * step_size
 
-    log.info("♻️ %s equity=%.2f$  max_coins=%.6f  final_qty=%.6f  nominal=%.2f$",
-             symbol, equity, max_coins_raw, qty_coin, qty_coin * entry_px)
+    log.info("♻️ %s equity=%.2f$  max_nom=%.2f$  qty=%.6f  nominal=%.2f$",
+             symbol, equity, max_nom, qty_coin, qty_coin * entry_px)
 
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
     qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
