@@ -10,13 +10,13 @@ class ScalperConfig:
 
     # --- риск и деньги ---
     MAX_POS: int = 3                    # макс одновременных позиций
-    RISK_PER_TRADE: float = 0.1        # 5 % от баланса на сделку
+    RISK_PER_TRADE: float = 0.01        # 5 % от баланса на сделку
     MAX_BALANCE_PC: float = 0.05        # макс % баланса в одной сделке (новое)
     TAKE_PROFIT_PCT: float = 0.02       # закрыть всё при +2 % к старту (новое)
-    MIN_NOTIONAL_FALLBACK: float = 5.0  # мин $ на вход
+    MIN_NOTIONAL_FALLBACK: float = 1.0  # мин $ на вход
 
     # --- плечо и лимиты ---
-    LEVERAGE: int = 20
+    LEVERAGE: int = 2
     LOT_STEP: float = 0.001
     MAX_NOMINAL_USD: float = 600_000.0  # лимит BingX для плеча (новое)
 
