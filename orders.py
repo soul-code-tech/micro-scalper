@@ -34,12 +34,14 @@ def _private_request(method: str, endpoint: str, params: dict) -> dict:
         "Content-Type": "application/x-www-form-urlencoded",  # ← добавь это
     }
 
+    # ← маяк (можно оставить)
     print(f"=== MAYAK ===")
     print(f"METHOD : {method}")
     print(f"URL    : {url}")
     print(f"QUERY  : {query_str}")  # ← ЭТО СТРОКА, КОТОРУЮ ПОДПИСАЛИ
     print(f"SIGNATURE: {signature}")
-    print(f"HEADERS: { {'X-BX-APIKEY': API_KEY} }")
+    print(f"HEADERS: {headers}")  # ← теперь с Content-Type
+    print(f"=== END MAYAK ===")
 
     r = requests.request(method, url, params=params, headers=headers, timeout=REQ_TIMEOUT)
 
