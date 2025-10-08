@@ -60,7 +60,8 @@ async def limit_entry(ex: BingXAsync,
                       qty_coin: float,
                       entry_px: float,
                       sl_price: float,
-                      tp_price: float) -> Optional[Tuple[str, float, float]]:
+                      tp_price: float,
+                      equity: float) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
 
     book = await ex.order_book(symbol, limit=5)
@@ -76,19 +77,17 @@ async def limit_entry(ex: BingXAsync,
 
     # ---------- округляем до шага ----------
     min_qty, step_size = get_min_lot(symbol)
+
+    # ---------- макс. кол-во монет под маржу ----------
+    max_nom = equity * CONFIG.LEVERAGE * 0.95
+    max_coins_raw = max_nom / entry_px
+    qty_coin = min(qty_coin, max_coins_raw)        # ← режем ДО округления
+
     qty_coin = max(qty_coin, min_qty)
     qty_coin = math.ceil(qty_coin / step_size) * step_size
 
-    # ---------- потолок BingX + депозит ----------
-    nominal_usd = qty_coin * entry_px
-    equity = await ex.balance()
-    max_allowed = min(1_200_000.0, equity * CONFIG.LEVERAGE * 0.95)
-
-    if nominal_usd > max_allowed:
-        qty_coin = max_allowed / entry_px
-        qty_coin = max(qty_coin, min_qty)
-        qty_coin = math.ceil(qty_coin / step_size) * step_size
-        log.info("♻️ %s nominal %.2f$ > max %.2f$ – урезано до %.6f", symbol, nominal_usd, max_allowed, qty_coin)
+    log.info("♻️ %s equity=%.2f$  max_coins=%.6f  final_qty=%.6f  nominal=%.2f$",
+             symbol, equity, max_coins_raw, qty_coin, qty_coin * entry_px)
 
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
     qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
