@@ -89,15 +89,14 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     # 4. объём и ордер
     qty_usd = usd_qty * leverage
     qty_coin = round(qty_usd / entry_px, lot_prec)
+    
     # ---------- нормализация по биржевым правилам ----------
-    entry_px = round(entry_px, price_prec)
-    qty_coin = round(qty_coin, lot_prec)
-    if qty_coin <= 0:
+    entry_px = format(round(entry_px, price_prec), f".{price_prec}f").rstrip('0').rstrip('.')
+    qty_coin = str(int(round(qty_coin, lot_prec))) if lot_prec == 0 else \
+               format(round(qty_coin, lot_prec), f".{lot_prec}f").rstrip('0').rstrip('.')
+    if float(qty_coin) <= 0:
         logging.warning("⚠️ %s – quantity ≤ 0", symbol)
-        return None 
-    # ← убираем экспоненту
-    entry_px = format(entry_px, f".{price_prec}f")  # '0.00001226'
-    qty_coin = format(qty_coin, f".{lot_prec}f")    # '8153.0'   
+        return None
     params = {
         "symbol": symbol,
         "side": side,
