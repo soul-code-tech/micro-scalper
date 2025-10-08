@@ -57,10 +57,10 @@ def calc(entry: float, atr: float, side: str, equity: float, sym: str,
     max_risk_coin = risk_amt / sl_dist
     size          = min(kelly_coin, max_risk_coin)
 
-    # --- жёсткий потолок номинала ---
-    max_nom = min(CONFIG.MAX_NOMINAL_USD, CONFIG.MAX_POS_NOMINAL)
+    # --- максимальный номинал под текущий депозит ---
+    max_nom   = equity * CONFIG.LEVERAGE * 0.9   # 90 % от доступной маржи
     max_coins = max_nom / entry
-    size = min(size, max_coins)
+    size      = min(size, max_coins)
 
     # 5. шаг лота
     lot_step = getattr(CONFIG, "LOT_STEP", 0.001)
