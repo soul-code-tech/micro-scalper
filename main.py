@@ -392,17 +392,9 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        resp = _private_request("POST",
-                                "/openApi/swap/v2/trade/order",
-                                {
-                                    "symbol": "SHIBUSDT",
-                                    "side": "BUY",
-                                    "type": "LIMIT",
-                                    "timeInForce": "POST_ONLY",
-                                    "price": "0.000012088",
-                                    "quantity": "8269",
-                                    "leverage": "20"
-                                })
-        print("TEST RESP:", resp)
+        print("=== DEBUG: запускаем main() ===")
+        asyncio.run(main())
     except Exception as e:
-        print("TEST ERR:", e)
+        print("CRASH in main():", e, file=sys.stderr)
+        traceback.print_exc()
+        sys.exit(1)
