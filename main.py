@@ -157,6 +157,12 @@ async def think(ex: BingXAsync, sym: str, equity: float):
     min_vol_dyn = equity * 0.05          # ← ОБЪЯВЛЯЕМ СРАЗУ ПОСЛЕ vol_usd
     side = ("LONG" if score["long"] > score["short"] else
             "SHORT" if score["short"] > score["long"] else None)
+    # --- защита от None и перевод в BUY/SELL ---
+    if side is None:
+        log.info("⏭ %s – no signal (side=None)", sym)
+        return
+
+    order_side = "BUY" if side == "LONG" else "SELL"
 
     log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
              sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
@@ -242,7 +248,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         position_side = "LONG" if side == "LONG" else "SHORT"
         
         # ----------  ЛИМИТНЫЙ ВХОД + OCO SL/TP  ----------
-        order_data = limit_entry(sym, side, sizing.usd_risk, CONFIG.LEVERAGE,
+        order_data = limit_entry(sym, order_side, sizing.usd_risk, CONFIG.LEVERAGE,
                          sizing.sl_px, sizing.tp_px)
         if order_data is None:                       # новая проверка
             log.info("⏭ %s – пропуск (limit_entry вернул None)", sym)
