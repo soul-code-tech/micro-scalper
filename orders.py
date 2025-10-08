@@ -105,7 +105,7 @@ async def limit_entry(ex: BingXAsync,
     if resp.get("code") != 0 or "data" not in resp or "order" not in resp["data"]:
             log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
             return None
-
+    log.debug("RAW RESP: %s", resp)
     order_id = resp["data"]["order"]["id"]
 
     order_id = resp["data"]["order"]["id"]
