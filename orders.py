@@ -29,7 +29,10 @@ def _private_request(method: str, endpoint: str, params: dict) -> dict:
 
     # 5. Отправляем запрос — requests добавит signature в URL
     url = ENDPOINT.rstrip() + endpoint.lstrip()
-    headers = {"X-BX-APIKEY": API_KEY}
+    headers = {
+        "X-BX-APIKEY": API_KEY,
+        "Content-Type": "application/x-www-form-urlencoded",  # ← добавь это
+    }
 
     print(f"=== MAYAK ===")
     print(f"METHOD : {method}")
