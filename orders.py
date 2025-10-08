@@ -40,7 +40,7 @@ async def limit_entry(ex: BingXAsync,
                       leverage: int,
                       sl_price: float,
                       tp_price: float
-                      ) -> Optional[Tuple[str, float, float]]]:
+                      ) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
 
     # ---------- мин-лот и шаг ----------
