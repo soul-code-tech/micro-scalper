@@ -297,9 +297,7 @@ async def download_weights_once():
 
 
 async def trade_loop(ex: BingXAsync):
-    global PEAK_BALANCE, CYCLE
-    await download_weights_once()
-
+    await load_min_lot_cache(ex)   # ← однажды
     while True:
         CYCLE += 1
 
