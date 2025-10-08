@@ -81,7 +81,7 @@ async def limit_entry(ex: BingXAsync,
     qty_coin = min(qty_coin, max_coins_raw)     # ← режем ДО ceil
 
     # ---------- мин. номинал ----------
-    min_nom = 1.0                               # ваш лимит
+    min_nom = 2.5                               # ваш лимит
     if qty_coin * entry_px < min_nom:
         qty_coin = min_nom / entry_px           # ≥ 1 $
 
