@@ -144,79 +144,53 @@ def _sign(params: dict) -> str:
 def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
                 sl_price: float, tp_price: float) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
-    print("DBG limit_entry", symbol, side, usd_qty, leverage) 
     public_sym = symbol
 
     # ---------- стакан ----------
     try:
-        raw_resp = requests.get(
+        raw = requests.get(
             f"{ENDPOINT}/openApi/swap/v2/quote/depth",
-            params={"symbol": public_sym, "limit": 5},
-            timeout=REQ_TIMEOUT
-        )
-        raw_resp.raise_for_status()
-        raw = raw_resp.json()
+            params={"symbol": public_sym, "limit": 5}, timeout=REQ_TIMEOUT
+        ).json()["data"]
     except Exception as e:
-        logging.warning("⚠️ %s – ошибка запроса стакана: %s", symbol, e)
+        logging.warning("⚠️ %s – ошибка стакана: %s", symbol, e)
         return None
 
-    book = raw.get("data", {})
-    if not book or "asks" not in book or "bids" not in book or not book["asks"] or not book["bids"]:
-        logging.warning("⚠️ %s – пустой стакан", symbol)
-        return None
-
-    # цена входа          
     if side == "BUY":
-        entry_px = float(book["bids"][0][0]) - 10 ** -price_prec
+        entry_px = float(raw["bids"][0][0]) - 10 ** -price_prec
     else:
-        entry_px = float(book["asks"][0][0]) + 10 ** -price_prec
+        entry_px = float(raw["asks"][0][0]) + 10 ** -price_prec
 
-    # ---------- марковая цена ----------
-    try:
-        mark_resp = requests.get(
-            f"{ENDPOINT}/openApi/swap/v2/quote/price",
-            params={"symbol": public_sym},
-            timeout=REQ_TIMEOUT
-        )
-        mark_resp.raise_for_status()
-        mark_raw = mark_resp.json()
-    except Exception as e:
-        logging.warning("⚠️ %s – ошибка запроса марковой цены: %s", symbol, e)
-        return None
-
-    if not mark_raw or mark_raw.get("code") != 0 or "data" not in mark_raw or not mark_raw["data"]:
-        logging.warning("⚠️ %s – невалидный ответ марковой цены: %s", symbol, mark_raw)
-        return None
-    mark = float(mark_raw["data"]["price"])
-
-    # 4. объём и ордер
+    # ---------- объём ----------
     qty_usd = usd_qty * leverage
     qty_coin = round(qty_usd / entry_px, lot_prec)
-    
-    # ---------- нормализация по биржевым правилам ----------
-    entry_px = format(round(entry_px, price_prec), f".{price_prec}f").rstrip('0').rstrip('.')
-    qty_coin = str(int(round(qty_coin, lot_prec))) if lot_prec == 0 else \
-               format(round(qty_coin, lot_prec), f".{lot_prec}f").rstrip('0').rstrip('.')
-    if float(qty_coin) <= 0:
+
+    # ---------- НОРМАЛИЗУЕМ К СТРОКЕ ----------
+    entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
+    qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
+    if float(qty_coin_str) <= 0:
         logging.warning("⚠️ %s – quantity ≤ 0", symbol)
         return None
 
-    # ← УБИРАЕМ дефис для private endpoints
-    symbol_private = symbol.replace("-", "")
-
-    # ← НИКАКИХ timestamp, signature — только базовые параметры!
     params = {
-        "symbol": symbol_private,
+        "symbol": symbol.replace("-", ""),
         "side": side,
         "type": "LIMIT",
         "timeInForce": "POST_ONLY",
-        "price": entry_px,
-        "quantity": qty_coin,
-        "leverage": leverage,
+        "price": entry_px_str,        # ← строка
+        "quantity": qty_coin_str,     # ← строка
+        "leverage": str(leverage),    # ← строка
     }
 
-    # ← _private_request сам добавит timestamp и signature
     resp = _private_request("POST", "/openApi/swap/v2/trade/order", params)
+    if resp.get("code") != 0:
+        logging.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
+        return None
+
+    order_id = resp["data"]["order"]["id"]
+    logging.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
+                 symbol, side, entry_px_str, qty_coin_str, order_id)
+    return order_id, float(entry_px_str), float(qty_coin_str)
 
     # ---------- размещение ордера ----------
     try:
