@@ -18,8 +18,7 @@ from store import cache
 from settings import CONFIG
 from tf_selector import best_timeframe
 from health_aio import start_health
-from orders import limit_entry, await_fill_or_cancel, limit_sl_tp
-
+from orders import limit_entry, await_fill_or_cancel, limit_sl_tp, load_min_lot_cache
 logging.getLogger("orders").setLevel(logging.DEBUG)
 
 print("=== DEBUG: импорты завершены ===")
