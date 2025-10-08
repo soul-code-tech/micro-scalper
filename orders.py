@@ -129,13 +129,14 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
         return None
 
     params = {
-        "symbol": symbol.replace("-", ""),
+        "symbol": symbol,                 # ← уже должен быть с дефисом (SHIB-USDT)
         "side": side,
         "type": "LIMIT",
-        "timeInForce": "POST_ONLY",
-        "price": entry_px_str,        # ← строка
-        "quantity": qty_coin_str,     # ← строка
-        "leverage": str(leverage),    # ← строка
+        "timeInForce": "PostOnly",        # ← без _
+        "positionSide": "LONG" if side == "BUY" else "SHORT",  # ← новое
+        "price": entry_px_str,
+        "quantity": qty_coin_str,
+        "leverage": str(leverage),
     }
 
     resp = _private_request("POST", "/openApi/swap/v2/trade/order", params)
