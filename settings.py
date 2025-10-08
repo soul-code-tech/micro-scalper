@@ -27,12 +27,13 @@ class ScalperConfig:
         **{s: {"MIN_ATR_PC": 0.00015, "MAX_SPREAD": 0.00060} for s in ("DOGE-USDT", "XRP-USDT")},
     })
     LOT_STEP: float = 0.001
-    LEVERAGE: int = 20
+    LEVERAGE: int = 10
     MIN_NOTIONAL_FALLBACK: float = 5
     MAX_BALANCE_PC: float = 0.05
 
 CONFIG = ScalperConfig()
-
+class CONFIG:
+    TAKE_PROFIT_PCT = 0.02   # 2 % от стартового баланса
 # ✅ ВНЕ class — глобальные константы
 PRICE_PRECISION = {
     "DOGE-USDT": 5,
