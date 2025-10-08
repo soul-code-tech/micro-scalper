@@ -58,14 +58,14 @@ def calc(entry: float, atr: float, side: str, equity: float, sym: str,
     size          = min(kelly_coin, max_risk_coin)
 
     # --- жёсткий потолок номинала ---
-    max_nom   = CONFIG.MAX_NOMINAL_USD
-    max_size  = max_nom / entry
-    size      = min(size, max_size)
+    max_nominal = CONFIG.MAX_NOMINAL_USD
+    max_coins   = max_nominal / entry
+    size        = min(size, max_coins)
 
     # 5. шаг лота
-    lot_step  = getattr(CONFIG, "LOT_STEP", 0.001)
-    size      = round(size / lot_step) * lot_step
-    size      = max(size, lot_step)
+    lot_step = getattr(CONFIG, "LOT_STEP", 0.001)
+    size     = round(size / lot_step) * lot_step
+    size     = max(size, lot_step)
     # 6. частичный тейк
     partial_qty = size * CONFIG.PARTIAL_TP
     return Sizing(size, risk_amt, sl_px, tp_px, partial_qty, atr)
