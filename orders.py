@@ -101,6 +101,20 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
                 sl_price: float, tp_price: float) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
     public_sym = symbol
+    # ---------- минимальный лот и шаг ----------
+    try:
+        info = await ex.get_contract_info(symbol)          # используем новый метод из BingXAsync
+        min_qty = float(info["data"][0]["minQty"])
+        step_size = float(info["data"][0]["stepSize"])
+    except Exception as e:
+        log.warning("⚠️ %s – не смог получить minQty, использую 149006: %s", symbol, e)
+        min_qty = 149006.0
+        step_size = 1.0
+
+    # ---------- корректируем quantity ----------
+    qty_coin = max(qty_coin, min_qty)
+    # округляем вверх до кратного stepSize
+    qty_coin = math.ceil(qty_coin / step_size) * step_size                
 
     # ---------- стакан ----------
     try:
