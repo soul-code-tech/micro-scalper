@@ -12,19 +12,32 @@ REQ_TIMEOUT = 5   # ← общий таймаут для всех запросо
 
 
 def _private_request(method: str, endpoint: str, params: dict) -> dict:
-    params = params.copy()
+    params = params.copy()  # копируем, чтобы не менять оригинал
+
+    # 1. Добавляем timestamp (без signature!)
     params["timestamp"] = int(time.time() * 1000)
-    params["signature"] = _sign(params)   # ← добавляем ПОСЛЕ
 
-    query_str = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
-    print(f"=== MAYAK ===")
-    print(f"METHOD : {method}")
-    print(f"URL    : {ENDPOINT.rstrip() + endpoint}")
-    print(f"QUERY  : {query_str}")
-    print(f"HEADERS: { {'X-BX-APIKEY': API_KEY} }")
+    # 2. Сортируем параметры и создаем строку для подписи — БЕЗ signature!
+    sorted_items = sorted(params.items())
+    query_str = "&".join(f"{k}={v}" for k, v in sorted_items)
 
+    # 3. Подписываем строку (без signature!)
+    signature = _sign(params)  # ← _sign использует sorted(params.items()) — без signature!
+
+    # 4. Теперь добавляем signature в params — уже после подписи
+    params["signature"] = signature
+
+    # 5. Отправляем запрос — requests добавит signature в URL
     url = ENDPOINT.rstrip() + endpoint.lstrip()
     headers = {"X-BX-APIKEY": API_KEY}
+
+    print(f"=== MAYAK ===")
+    print(f"METHOD : {method}")
+    print(f"URL    : {url}")
+    print(f"QUERY  : {query_str}")  # ← ЭТО СТРОКА, КОТОРУЮ ПОДПИСАЛИ
+    print(f"SIGNATURE: {signature}")
+    print(f"HEADERS: { {'X-BX-APIKEY': API_KEY} }")
+
     r = requests.request(method, url, params=params, headers=headers, timeout=REQ_TIMEOUT)
 
     print(f"STATUS : {r.status_code}")
@@ -111,10 +124,10 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
         logging.warning("⚠️ %s – quantity ≤ 0", symbol)
         return None
 
-    # ← убираем дефис для private endpoints
+    # ← УБИРАЕМ дефис для private endpoints
     symbol_private = symbol.replace("-", "")
 
-    # ← signature НЕ добавляем сюда
+    # ← НИКАКИХ timestamp, signature — только базовые параметры!
     params = {
         "symbol": symbol_private,
         "side": side,
@@ -123,14 +136,13 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
         "price": entry_px,
         "quantity": qty_coin,
         "leverage": leverage,
-    # ← без timestamp и signature
     }
-    # signature добавит _private_request САМ
+
+    # ← _private_request сам добавит timestamp и signature
     resp = _private_request("POST", "/openApi/swap/v2/trade/order", params)
+
     # ---------- размещение ордера ----------
     try:
-        resp = _private_request("POST", "/openApi/swap/v2/trade/order", params)
-        print("DBG order response", symbol, resp)
         if not resp or resp.get("code") != 0 or "data" not in resp or not resp["data"] or "order" not in resp["data"]:
             logging.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
             return None
