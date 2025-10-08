@@ -248,23 +248,21 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         position_side = "LONG" if side == "LONG" else "SHORT"
         
         # ----------  ЛИМИТНЫЙ ВХОД + OCO SL/TP  ----------
-        order_data = limit_entry(sym, order_side, sizing.usd_risk, CONFIG.LEVERAGE,
-                         sizing.sl_px, sizing.tp_px)
-        if order_data is None:                       # новая проверка
+        order_data = await limit_entry(ex, sym, order_side,
+                               sizing.usd_risk,
+                               CONFIG.LEVERAGE,
+                               sizing.sl_px,
+                               sizing.tp_px)
+        if order_data is None:
             log.info("⏭ %s – пропуск (limit_entry вернул None)", sym)
             return
-        order_id, entry_px, qty_coin = order_data    # теперь safe
-       
-        # Теперь можно await-ить
         order_id, entry_px, qty_coin = order_data
-        print("DBG перед await_fill_or_cancel", order_id, sym)
-        avg_px = await await_fill_or_cancel(order_id, sym, max_sec=8)
-        print("DBG после await_fill_or_cancel", avg_px)
-        if avg_px is None:                       # не успели за 8 с
+
+        avg_px = await await_fill_or_cancel(ex, order_id, sym, max_sec=8)
+        if avg_px is None:
             return
 
-        # ставим лимитные SL и TP
-        await limit_sl_tp(sym, side, qty_coin, sizing.sl_px, sizing.tp_px)
+        await limit_sl_tp(ex, sym, side, qty_coin, sizing.sl_px, sizing.tp_px)
 
         # сохраняем позицию в память
         POS[sym] = dict(
