@@ -94,7 +94,7 @@ async def limit_entry(ex: BingXAsync,
     log.debug("DEBUG: qty_coin_str=%s, entry_px_str=%s", qty_coin_str, entry_px_str)                      
     nominal_usd = float(qty_coin_str) * float(entry_px_str)
     log.debug("DEBUG: nominal_usd=%.4f", nominal_usd)                      
-    max_nominal = 150_000.0
+    max_nominal = 600_000.0
     if nominal_usd > max_nominal:
         new_leverage = max(1, int(max_nominal / nominal_usd))
         log.warning("♻️ %s nominal %.2f$ > max %.0f$ – понижаю плечо до %d×",
