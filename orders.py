@@ -211,3 +211,19 @@ def limit_sl_tp(symbol: str, side: str, qty_coin: float,
         ids.append(oid)
         logging.info("🛑 %s %s limit @ %s  id=%s", name, symbol, px, oid)
     return tuple(ids)
+if __name__ == "__main__":
+    try:
+        resp = _private_request("POST",
+                                "/openApi/swap/v2/trade/order",
+                                {
+                                    "symbol": "SHIBUSDT",
+                                    "side": "BUY",
+                                    "type": "LIMIT",
+                                    "timeInForce": "POST_ONLY",
+                                    "price": "0.000012088",
+                                    "quantity": "8269",
+                                    "leverage": "20"
+                                })
+        print("TEST RESP:", resp)
+    except Exception as e:
+        print("TEST ERR:", e)                
