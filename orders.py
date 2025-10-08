@@ -14,11 +14,9 @@ def _private_request(method: str, endpoint: str, params: dict) -> dict:
     params = params.copy()
     params["timestamp"] = int(time.time() * 1000)
     params["signature"] = _sign(params)
-    headers = {
-        "X-BX-APIKEY": API_KEY,
-        "Content-Type": "application/json"
-    }
-    r = requests.request(method, ENDPOINT + endpoint, json=params, headers=headers, timeout=REQ_TIMEOUT)
+    headers = {"X-BX-APIKEY": API_KEY}
+    url = ENDPOINT.rstrip() + endpoint.lstrip()  # убираем пробелы и лишние слэши
+    r = requests.request(method, url, params=params, headers=headers, timeout=REQ_TIMEOUT)
     r.raise_for_status()
     return r.json()
 
