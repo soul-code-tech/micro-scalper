@@ -120,6 +120,8 @@ async def manage_position(ex: BingXAsync, symbol: str, api_pos: dict):
         return
     
     mark = float(api_pos["markPrice"])
+    side = pos["side"]                      # ← добавить
+    risk_dist = abs(pos["entry"] - pos["sl_orig"])  # ← добавить
     equity = await ex.balance()          # берём актуальный баланс
     dd = (PEAK_BALANCE - equity) / PEAK_BALANCE * 100
     if dd > CONFIG.MAX_DD_STOP:          # 10 %
@@ -240,47 +242,35 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
         log.info(f"⏭️ {symbol} already in POS – skip")
         return
     
-    # Расчёт размера
+    # ---------- РАСЧЁТ РАЗМЕРА ----------
     sizing = calc(px, atr_pc * px, side, equity, symbol)
     if sizing.size <= 0:
         log.info(f"⏭️  {symbol} sizing zero")
         return
-    
-    # Минимальный номинал с API
-    try:
-        ci = await ex.get_contract_info(symbol)
-        min_notional_str = ci["data"][0].get("minNotional")
-        if not min_notional_str:
-            raise ValueError("minNotional missing")
-        min_nom = float(min_notional_str)
-    except Exception as e:
-        log.warning(f"⚠️  {symbol} minNotional error: {e} — использую fallback")
-        min_nom = CONFIG.MIN_NOTIONAL_FALLBACK
-    
-    # Для дешёвых монет — снижаем порог
-    if symbol in ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "XRP-USDT", "BNB-USDT", "SUI-USDT"):
-        min_nom = min(CONFIG.MIN_NOTIONAL_FALLBACK * 0.5, min_nom)
-    
-    # --- жёсткий потолок под депозит ---
-    max_nom = equity * CONFIG.LEVERAGE * 0.9          # 90 % маржи
+
+    # ---------- ЖЁСТКИЙ ПОТОЛОК ПО ДЕПОЗИТУ ----------
+    max_nom   = equity * CONFIG.LEVERAGE * 0.9          # 90 % маржи
     max_coins = max_nom / px
-    size = min(size, max_coins)                       # уже в sizing.size
+    size      = min(sizing.size, max_coins)             # режем если > 18 $
+    log.debug(f"{symbol} max_coins={max_coins:.4f}  raw_size={sizing.size:.4f}  final_size={size:.4f}")
 
-    # --- минимальный номинал для входа ---
+    # ---------- МИНИМАЛЬНЫЙ НОМИНАЛ ----------
     min_nom = CONFIG.MIN_NOTIONAL_FALLBACK * 0.5 if symbol in ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "XRP-USDT", "BNB-USDT", "SUI-USDT") else CONFIG.MIN_NOTIONAL_FALLBACK
-    min_nom = min(min_nom, max_nom)                   # не выше доступной маржи
+    min_nom = min(min_nom, max_nom)                     # не выше доступной маржи
 
-    if sizing.size * px < min_nom:                    # подтягиваем до минимума
-        new_size = min_nom / px
-        log.info(f"⚠️  {symbol} nominal {sizing.size * px:.2f} < {min_nom:.2f} USD — увеличиваю до {new_size:.6f}")
-        sizing = Sizing(
-            size=new_size,
-            usd_risk=sizing.usd_risk,
-            sl_px=sizing.sl_px,
-            tp_px=sizing.tp_px,
-            partial_qty=new_size * CONFIG.PARTIAL_TP,
-            atr=sizing.atr
-        )
+    if size * px < min_nom:                             # подтягиваем до минимума
+        size = min_nom / px
+        log.info(f"⚠️  {symbol} nominal {size * px:.2f} < {min_nom:.2f} USD — увеличиваю до {size:.6f}")
+
+    # ---------- ПЕРЕСОБИРАЕМ Sizing с финальным size ----------
+    sizing = Sizing(
+        size=size,
+        usd_risk=sizing.usd_risk,
+        sl_px=sizing.sl_px,
+        tp_px=sizing.tp_px,
+        partial_qty=size * CONFIG.PARTIAL_TP,
+        atr=sizing.atr
+    )
     
     # FLOW-OK — все условия пройдены
     log.info(f"FLOW-OK {symbol}  px={px:.5f} sizing={sizing.size:.6f}")
