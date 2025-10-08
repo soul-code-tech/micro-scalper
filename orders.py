@@ -15,9 +15,24 @@ def _private_request(method: str, endpoint: str, params: dict) -> dict:
     params = params.copy()
     params["timestamp"] = int(time.time() * 1000)
     params["signature"] = _sign(params)
+
+    # ← маяки
+    query_str = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+    print(f"=== MAYAK ===")
+    print(f"METHOD : {method}")
+    print(f"URL    : {ENDPOINT.rstrip() + endpoint}")
+    print(f"QUERY  : {query_str}")
+    print(f"HEADERS: { {'X-BX-APIKEY': API_KEY} }")
+
+    url = ENDPOINT.rstrip() + endpoint.lstrip()
     headers = {"X-BX-APIKEY": API_KEY}
-    url = ENDPOINT.rstrip() + endpoint.lstrip()  # убираем пробелы и лишние слэши
     r = requests.request(method, url, params=params, headers=headers, timeout=REQ_TIMEOUT)
+
+    print(f"STATUS : {r.status_code}")
+    print(f"HEADERS: {dict(r.headers)}")
+    print(f"TEXT   : {r.text[:300]}")   # первые 300 символов ответа
+    print(f"=== END MAYAK ===")
+
     r.raise_for_status()
     return r.json()
 
@@ -99,8 +114,8 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
         return None
     # Для приватных API — символ БЕЗ дефиса
     symbol_for_sign = symbol.replace("-", "")
-    params = {
-        "symbol": symbol_for_sign,  # ← ✅ ИСПРАВЛЕНО!
+         params = {
+        "symbol": symbol_private, 
         "side": side,
         "type": "LIMIT",
         "timeInForce": "POST_ONLY",
