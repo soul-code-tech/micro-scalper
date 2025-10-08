@@ -50,20 +50,23 @@ def calc(entry: float, atr: float, side: str, equity: float, sym: str,
     sl_px    = entry - sl_dist if side == "LONG" else entry + sl_dist
     tp_dist  = sl_dist * rr
     tp_px    = entry + tp_dist if side == "LONG" else entry - tp_dist
-
+    
     # 4. размер позиции
-    kelly_coin = kelly_size(win_rate, avg_rr, equity, entry)
-    sl_dist = max(atr * atr_mult, entry * 0.001)          # защита от 0
+    kelly_coin    = kelly_size(win_rate, avg_rr, equity, entry)
+    sl_dist       = max(atr * atr_mult, entry * 0.001)
     max_risk_coin = risk_amt / sl_dist
-    size = min(kelly_coin, max_risk_coin)
-    # после строки size = min(kelly_coin, max_risk_coin)
+    size          = min(kelly_coin, max_risk_coin)
 
-    # минимальный шаг лота (пример, берём из настроек или 0.001)
-    lot_step = getattr(CONFIG, "LOT_STEP", 0.001)
-    size = round(size / lot_step) * lot_step
-    size = max(size, lot_step)        # не меньше минимального       
+    # --- жёсткий потолок номинала ---
+    max_nom   = CONFIG.MAX_NOMINAL_USD
+    max_size  = max_nom / entry
+    size      = min(size, max_size)
 
-    # 5. частичный тейк
+    # 5. шаг лота
+    lot_step  = getattr(CONFIG, "LOT_STEP", 0.001)
+    size      = round(size / lot_step) * lot_step
+    size      = max(size, lot_step)
+    # 6. частичный тейк
     partial_qty = size * CONFIG.PARTIAL_TP
     return Sizing(size, risk_amt, sl_px, tp_px, partial_qty, atr)
 # ------------------------------ стоп-аут ------------------------------
