@@ -260,18 +260,24 @@ def await_fill_or_cancel(order_id: str, symbol: str, max_sec: float = 8) -> Opti
     return None
    
 
-def limit_sl_tp(symbol: str, side: str, qty_coin: float, sl_price: float, tp_price: float):
-    """Создаёт 2 лимитных ордера (SL и TP) одновременно."""
+def limit_sl_tp(symbol: str, side: str, qty_coin: float,
+                sl_price: float, tp_price: float) -> Tuple[str, str]:
+    """Создаёт 2 лимитных ордера (SL и TP) одновременно.
+    Возвращает (orderId_SL, orderId_TP)"""
     opposite = "SELL" if side == "BUY" else "BUY"
+    ids = []
     for name, px in (("SL", sl_price), ("TP", tp_price)):
         params = {
-            "symbol": symbol,
+            "symbol": symbol.replace("-", ""),   # убираем дефис
             "side": opposite,
             "type": "LIMIT",
             "timeInForce": "POST_ONLY",
-            "price": px,
-            "quantity": qty_coin,
-            "timestamp": int(time.time() * 1000),
+            "price": str(px),
+            "quantity": str(qty_coin),
+            # timestamp НЕ добавляем – добавит _private_request
         }
         resp = _private_request("POST", "/openApi/swap/v2/trade/order", params)
-        logging.info("🛑 %s %s limit @ %s", name, symbol, px)
+        oid = resp["data"]["order"]["id"]
+        ids.append(oid)
+        logging.info("🛑 %s %s limit @ %s  id=%s", name, symbol, px, oid)
+    return tuple(ids)
