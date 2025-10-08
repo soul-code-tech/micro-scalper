@@ -59,25 +59,25 @@ def _private_request(method: str, endpoint: str, params: dict) -> dict:
     signature = hmac.new(SECRET.encode(), query_str.encode(), hashlib.sha256).hexdigest()
     query_str += f"&signature={signature}"
 
-    # 3. финальный URL
-    url = ENDPOINT.rstrip("/") + "/" + endpoint.lstrip("/") + "?" + query_str
-    headers = {"X-BX-APIKEY": API_KEY}
+    try:
+        url = ENDPOINT.rstrip("/") + "/" + endpoint.lstrip("/") + "?" + query_str
+        headers = {"X-BX-APIKEY": API_KEY}
 
-    # 4. запрос БЕЗ params, чтобы requests не трогал порядок
-    r = requests.request(method, url, headers=headers, timeout=REQ_TIMEOUT, verify=False)
+        r = requests.request(method, url, headers=headers,
+                             timeout=REQ_TIMEOUT, verify=False)
 
-    print("=== MAYAK ===")
-    print("METHOD :", method)
-    print("URL    :", url)
-    print("STATUS :", r.status_code)
-    print("TEXT   :", r.text[:300])
-    print("=== END ===")
+        print("=== MAYAK ===")
+        print("METHOD :", method)
+        print("URL    :", url)
+        print("STATUS :", r.status_code)
+        print("TEXT   :", r.text[:300])
+        print("=== END ===")
 
-    r.raise_for_status()
-    return r.json()
+        r.raise_for_status()
+        return r.json()
 
     except Exception as e:
-        logging.error("❌ Ошибка при запросе через прокси: %s", e)
+        logging.error("❌ Ошибка при запросе: %s", e)
         raise RuntimeError(f"Не удалось выполнить запрос: {e}")
 
 def _get_precision(symbol: str) -> Tuple[int, int]:
