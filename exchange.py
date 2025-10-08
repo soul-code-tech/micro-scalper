@@ -107,22 +107,21 @@ class BingXAsync:
         if not data:
             raise RuntimeError("Empty balance data")
 
-        # ищем именно «USDT», а не «-USDT»
+        # ищем именно «USDT»
         for entry in data:
             if entry.get("asset") == "USDT":
-                return float(entry.get("equity", 0))
-
-        # fallback – первый актив
-        return float(data[0].get("equity", 0))
+                equity_str = entry.get("equity", "0")
+                try:
+                    return float(equity_str)
                 except ValueError as e:
                     raise RuntimeError(f"Cannot parse equity '{equity_str}': {e}")
-    
+
+        # fallback – первый актив
+        equity_str = data[0].get("equity", "0")
         try:
-            equity_str = entry.get("equity", "0")
             return float(equity_str)
         except ValueError as e:
             raise RuntimeError(f"Cannot parse equity '{equity_str}': {e}")
-
     async def set_leverage(self, symbol: str, leverage: int, side: str) -> dict:
         return await self._signed_request("POST", "/openApi/swap/v2/trade/leverage",
                                           {"symbol": symbol, "leverage": leverage, "side": side})
