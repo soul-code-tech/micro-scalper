@@ -216,14 +216,15 @@ if __name__ == "__main__":
         resp = _private_request("POST",
                                 "/openApi/swap/v2/trade/order",
                                 {
-                                    "symbol": "SHIBUSDT",
+                                    "symbol": "SHIB-USDT",      # ← дефис обязателен
                                     "side": "BUY",
                                     "type": "LIMIT",
-                                    "timeInForce": "POST_ONLY",
+                                    "timeInForce": "PostOnly",  # ← регистр и значение
+                                    "positionSide": "LONG",     # ← новое обязательное поле
                                     "price": "0.000012088",
                                     "quantity": "8269",
                                     "leverage": "20"
                                 })
         print("TEST RESP:", resp)
     except Exception as e:
-        print("TEST ERR:", e)                
+        print("TEST ERR:", e)      
