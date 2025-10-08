@@ -42,24 +42,7 @@ async def limit_entry(ex: BingXAsync,
                       tp_price: float
                       ) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
-    # ---------- объём ----------
-    qty_usd  = usd_qty * leverage
-    qty_coin = round(qty_usd / entry_px, lot_prec)   # ← расчёт ДО корректировок                  
 
-    # ---------- мин-лот и шаг ----------
-    try:
-        info = await ex.get_contract_info(symbol)
-        data0 = info["data"][0]
-        min_qty   = float(data0.get("minQty", 149068.0))   # ← новый дефолт
-        step_size = float(data0.get("stepSize", 1.0))
-    except Exception as e:
-        log.warning("⚠️ %s – не смог получить minQty/stepSize: %s", symbol, e)
-        min_qty   = 149068.0   # ← актуальный минимум из ошибки
-        step_size = 1.0
-
-    # ---------- корректировка quantity ----------
-    qty_coin = max(qty_coin, min_qty)
-    qty_coin = math.ceil(qty_coin / step_size) * step_size
     # ---------- стакан ----------
     book = await ex.order_book(symbol, limit=5)
     if not book or not book.get("bids") or not book.get("asks"):
@@ -71,19 +54,38 @@ async def limit_entry(ex: BingXAsync,
     else:
         entry_px = float(book["asks"][0][0]) + 10 ** -price_prec
 
-    # ---------- строковые значения ----------
+    # ---------- объём ----------
+    qty_usd  = usd_qty * leverage
+    qty_coin = round(qty_usd / entry_px, lot_prec)
+
+    # ---------- мин-лот и шаг ----------
+    try:
+        info = await ex.get_contract_info(symbol)
+        data0 = info["data"][0]
+        min_qty   = float(data0.get("minQty", 149068.0))
+        step_size = float(data0.get("stepSize", 1.0))
+    except Exception as e:
+        log.warning("⚠️ %s – не смог получить minQty/stepSize: %s", symbol, e)
+        min_qty   = 149068.0
+        step_size = 1.0
+
+    # ---------- корректировка ----------
+    qty_coin = max(qty_coin, min_qty)
+    qty_coin = math.ceil(qty_coin / step_size) * step_size
+
+    # ---------- строки ----------
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
     qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
 
     params = {
-        "symbol":        symbol,                      # SHIB-USDT
-        "side":          side,
-        "type":          "LIMIT",
-        "timeInForce":   "PostOnly",
-        "positionSide":  "LONG" if side == "BUY" else "SHORT",
-        "price":         entry_px_str,
-        "quantity":      qty_coin_str,
-        "leverage":      str(leverage),
+        "symbol":       symbol,
+        "side":         side,
+        "type":         "LIMIT",
+        "timeInForce":  "PostOnly",
+        "positionSide": "LONG" if side == "BUY" else "SHORT",
+        "price":        entry_px_str,
+        "quantity":     qty_coin_str,
+        "leverage":     str(leverage),
     }
 
     resp = await ex._signed_request("POST", "/openApi/swap/v2/trade/order", params)
@@ -95,7 +97,6 @@ async def limit_entry(ex: BingXAsync,
     log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
              symbol, side, entry_px_str, qty_coin_str, order_id)
     return order_id, float(entry_px_str), float(qty_coin_str)
-
 
 # --------------------  ОЖИДАНИЕ / ОТМЕНА  --------------------
 async def await_fill_or_cancel(ex: BingXAsync,
