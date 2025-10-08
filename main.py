@@ -212,7 +212,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         min_nom = min(CONFIG.MIN_NOTIONAL_FALLBACK * 0.5, min_nom)
 
     # ✅ Максимум: 90% × leverage
-    max_nominal = equity * 0.05 * CONFIG.LEVERAGE
+    max_nominal = equity * 0.1 * CONFIG.LEVERAGE
     if min_nom > max_nominal:
         log.info("⏭️  %s min_nom (%.2f) > max_nom (%.2f) — пропуск", sym, min_nom, max_nominal)
         return
