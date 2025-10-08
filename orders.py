@@ -62,7 +62,7 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
         logging.warning("⚠️ %s – пустой стакан", symbol)
         return None
 
-    # цена входа
+    # цена входа          
     if side == "BUY":
         entry_px = float(book["bids"][0][0]) - 10 ** -price_prec
     else:
@@ -89,6 +89,12 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     # 4. объём и ордер
     qty_usd = usd_qty * leverage
     qty_coin = round(qty_usd / entry_px, lot_prec)
+    # ---------- нормализация по биржевым правилам ----------
+    entry_px = round(entry_px, price_prec)
+    qty_coin = round(qty_coin, lot_prec)
+    if qty_coin <= 0:
+        logging.warning("⚠️ %s – quantity ≤ 0", symbol)
+        return None                
     params = {
         "symbol": symbol,
         "side": side,
