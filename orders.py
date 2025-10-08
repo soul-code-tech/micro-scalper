@@ -71,25 +71,28 @@ async def limit_entry(ex: BingXAsync,
 
     tick = 10 ** -price_prec
     if side == "BUY":
-        entry_px = float(book["bids"][0][0]) - tick * 2
+        entry_px = float(book["bids"][0][0]) - tick * 5
     else:
-        entry_px = float(book["asks"][0][0]) + tick * 2
+        entry_px = float(book["asks"][0][0]) + tick * 5
 
-    # ---------- округляем до шага ----------
-    min_qty, step_size = get_min_lot(symbol)
-
-    # ---------- макс. номинал под текущий депозит ----------
-    max_nom = equity * CONFIG.LEVERAGE * 0.90   # 180 USDT при 10×20
-    max_coins = max_nom / entry_px
-    qty_coin = min(qty_coin, max_coins)         # ← режем ДО округления
+    # ---------- макс. кол-во монет под маржу ----------
+    max_nom = equity * CONFIG.LEVERAGE * 0.90   # 89.64 $ при 9.96×20
+    max_coins_raw = max_nom / entry_px          # ≈ 25.96 монет
+    qty_coin = min(qty_coin, max_coins_raw)     # ← режем ДО ceil
 
     # ---------- мин. номинал ----------
     min_nom = 1.0                               # ваш лимит
     if qty_coin * entry_px < min_nom:
-        qty_coin = min_nom / entry_px
+        qty_coin = min_nom / entry_px           # ≥ 1 $
 
-    qty_coin = max(qty_coin, min_qty)
+    # ---------- теперь округляем ----------
+    min_qty, step_size = get_min_lot(symbol)
+    qty_coin = max(qty_coin, min_qty)           # не даёт быть < minQty
     qty_coin = math.ceil(qty_coin / step_size) * step_size
+
+    # ---------- итоговый контроль ----------
+    if qty_coin * entry_px > max_nom:           # если после ceil перелезли
+        qty_coin = math.floor(max_nom / entry_px / step_size) * step_size
 
     log.info("♻️ %s equity=%.2f$  max_nom=%.2f$  qty=%.6f  nominal=%.2f$",
              symbol, equity, max_nom, qty_coin, qty_coin * entry_px)
@@ -100,10 +103,8 @@ async def limit_entry(ex: BingXAsync,
     params = {
         "symbol":       symbol,
         "side":         side,
-        "type":         "LIMIT",
-        "timeInForce":  "PostOnly",
+        "type":         "MARKET",           # ← вместо "LIMIT"
         "positionSide": "LONG" if side == "BUY" else "SHORT",
-        "price":        entry_px_str,
         "quantity":     qty_coin_str,
     }
 
