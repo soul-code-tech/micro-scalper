@@ -90,7 +90,7 @@ async def main():
                         log.exception(e)
                     
                     # Небольшая задержка между символами
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(15)
                 
                 # Проверка общего PnL
                 if CYCLE % 20 == 0:
@@ -106,7 +106,7 @@ async def main():
                     log.info(f"📊 EQ:${equity:.2f}  Peak:${PEAK_BALANCE:.2f}  DD:{dd:.2f}%  POS:{len(POS)}  ORD:{len(OPEN_ORDERS)}")
                 
                 # Пауза между циклами
-                await asyncio.sleep(15)
+                await asyncio.sleep(10)
                 
             except Exception as e:
                 log.error(f"💥 Критическая ошибка в основном цикле: {str(e)}")
@@ -167,6 +167,14 @@ async def manage_position(ex: BingXAsync, symbol: str, api_pos: dict):
         log.info(f"🛑 {symbol} stopped at {mark:.5f}  qty={pos['qty']:.3f}  fee={fee:.4f}$  pnl={pnl:.4f}$")
         await ex.close_position(symbol, "SELL" if side == "LONG" else "BUY", pos["qty"])
         POS.pop(symbol, None)
+    # ---------- быстрый выход +12 % ----------
+    if not pos.get("tp_fast_done"):
+        tp_fast = pos["entry"] * (1.12 if side == "LONG" else 0.88)
+        if (side == "LONG" and mark >= tp_fast) or (side == "SHORT" and mark <= tp_fast):
+            await ex.close_position(symbol, "SELL" if side == "LONG" else "BUY", pos["qty"])
+            POS.pop(symbol, None)
+            log.info("🎯 %s +12%% closed at %.5f", symbol, mark)
+            return  
 
 async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
     """Ищет новые возможности для входа и открывает позицию"""
@@ -180,8 +188,13 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
             else:
                 return
         except Exception as e:
-            log.warning(f"❌ не смог проверить ордер {symbol}: {e}")
-            return
+            if "101204" in str(e) or "101209" in str(e):
+                log.warning("⚠️ %s – маржа мала, пропуск", symbol)   # без traceback
+            else:
+                log.exception(e)
+        except Exception as e:
+            log.error(f"❌ {symbol}: {e}")
+    # без traceback если не критично
     
     # Получаем лучший таймфрейм
     tf = await best_timeframe(ex, symbol)
@@ -271,6 +284,20 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
         partial_qty=size * CONFIG.PARTIAL_TP,
         atr=sizing.atr
     )
+    # ---------- риск НЕ больше 20 % баланса ----------
+    max_risk_usd = equity * 0.20
+    if sizing.usd_risk > max_risk_usd:
+        k = max_risk_usd / sizing.usd_risk
+        new_size = sizing.size * k
+        sizing = Sizing(
+            size=new_size,
+            usd_risk=max_risk_usd,
+            sl_px=sizing.sl_px,
+            tp_px=sizing.tp_px,
+            partial_qty=new_size * CONFIG.PARTIAL_TP,
+            atr=sizing.atr
+        )
+    log.info("⚖️ %s риск урезан до 20%% баланса", symbol)
     
     # FLOW-OK — все условия пройдены
     log.info(f"FLOW-OK {symbol}  px={px:.5f} sizing={sizing.size:.6f}")
