@@ -28,7 +28,7 @@ class ScalperConfig:
     })
     LOT_STEP: float = 0.001
     LEVERAGE: int = 20
-    MIN_NOTIONAL_FALLBACK: float = 15.0
+    MIN_NOTIONAL_FALLBACK: float = 5
     MAX_BALANCE_PC: float = 0.05
 
 CONFIG = ScalperConfig()
