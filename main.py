@@ -261,18 +261,18 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
     if symbol in ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "XRP-USDT", "BNB-USDT", "SUI-USDT"):
         min_nom = min(CONFIG.MIN_NOTIONAL_FALLBACK * 0.5, min_nom)
     
-    # Максимум: 90% × leverage
-    max_nominal = equity * 0.9 * CONFIG.LEVERAGE
-    if min_nom > max_nominal:
-        log.info(f"⏭️  {symbol} min_nom ({min_nom:.2f}) > max_nom ({max_nominal:.2f}) — пропуск")
-        return
-    
-    min_nom = min(min_nom, max_nominal)
-    
-    # Подтягиваем размер до минимума
-    if sizing.size * px < min_nom:
+    # --- жёсткий потолок под депозит ---
+    max_nom = equity * CONFIG.LEVERAGE * 0.9          # 90 % маржи
+    max_coins = max_nom / px
+    size = min(size, max_coins)                       # уже в sizing.size
+
+    # --- минимальный номинал для входа ---
+    min_nom = CONFIG.MIN_NOTIONAL_FALLBACK * 0.5 if symbol in ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "XRP-USDT", "BNB-USDT", "SUI-USDT") else CONFIG.MIN_NOTIONAL_FALLBACK
+    min_nom = min(min_nom, max_nom)                   # не выше доступной маржи
+
+    if sizing.size * px < min_nom:                    # подтягиваем до минимума
         new_size = min_nom / px
-        log.info(f"⚠️  {symbol} nominal {sizing.size * px:.2f} < {min_nom:.2f} USD — увеличиваю до {new_size:.6f} ({min_nom:.2f} USD)")
+        log.info(f"⚠️  {symbol} nominal {sizing.size * px:.2f} < {min_nom:.2f} USD — увеличиваю до {new_size:.6f}")
         sizing = Sizing(
             size=new_size,
             usd_risk=sizing.usd_risk,
