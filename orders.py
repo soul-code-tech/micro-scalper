@@ -10,6 +10,7 @@ SECRET   = os.getenv("BINGX_SECRET_KEY")
 
 REQ_TIMEOUT = 5   # ← общий таймаут для всех запросов
 
+
 def _private_request(method: str, endpoint: str, params: dict) -> dict:
     params = params.copy()
     params["timestamp"] = int(time.time() * 1000)
@@ -40,8 +41,7 @@ def _sign(params: dict) -> str:
 def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
                 sl_price: float, tp_price: float) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
-    print("DBG limit_entry", symbol, side, usd_qty, leverage)
-
+    print("DBG limit_entry", symbol, side, usd_qty, leverage) 
     public_sym = symbol
 
     # ---------- стакан ----------
@@ -100,7 +100,8 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
         "timestamp": int(time.time() * 1000),
     }
     params["signature"] = _sign(params)
-
+    print("DBG params", params)
+    print("DBG query", "&".join(f"{k}={v}" for k, v in sorted(params.items())))
     # ---------- размещение ордера ----------
     try:
         resp = _private_request("POST", "/openApi/swap/v2/trade/order", params)
