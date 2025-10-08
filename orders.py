@@ -112,10 +112,12 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
     if float(qty_coin) <= 0:
         logging.warning("⚠️ %s – quantity ≤ 0", symbol)
         return None
-    # Для приватных API — символ БЕЗ дефиса
-    symbol_for_sign = symbol.replace("-", "")
+
+    # ← убираем дефис для private endpoints
+    symbol_private = symbol.replace("-", "")
+
     params = {
-        "symbol": symbol_private, 
+        "symbol": symbol_private,          # ← используем СЮДА
         "side": side,
         "type": "LIMIT",
         "timeInForce": "POST_ONLY",
