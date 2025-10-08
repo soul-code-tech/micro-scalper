@@ -10,7 +10,7 @@ class ScalperConfig:
 
     # --- риск и деньги ---
     MAX_POS: int = 3                    # макс одновременных позиций
-    RISK_PER_TRADE: float = 0.01        # 5 % от баланса на сделку
+    RISK_PER_TRADE: float = 0.05        # 5 % от баланса на сделку
     MAX_BALANCE_PC: float = 0.05        # макс % баланса в одной сделке (новое)
     TAKE_PROFIT_PCT: float = 0.02       # закрыть всё при +2 % к старту (новое)
     MIN_NOTIONAL_FALLBACK: float = 1.0  # мин $ на вход
