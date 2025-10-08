@@ -11,8 +11,44 @@ SECRET   = os.getenv("BINGX_SECRET_KEY")
 REQ_TIMEOUT = 5   # ← общий таймаут для всех запросов
 
 
+import os
+import time
+import math
+import hmac
+import hashlib
+import requests
+import logging
+from typing import Optional, Dict, Any
+from settings import CONFIG
+
+logging.basicConfig(level=logging.DEBUG)
+
+ENDPOINT = "https://open-api.bingx.com"
+API_KEY = os.getenv("BINGX_API_KEY")
+SECRET = os.getenv("BINGX_SECRET_KEY")
+
+REQ_TIMEOUT = 5
+
+def _get_precision(symbol: str) -> Tuple[int, int]:
+    public_sym = symbol
+    try:
+        r = requests.get(f"{ENDPOINT}/openApi/swap/v2/quote/contracts",
+                         params={"symbol": public_sym}, timeout=REQ_TIMEOUT)
+        r.raise_for_status()
+        for s in r.json()["data"]:
+            if s["symbol"] == public_sym:
+                return int(s["pricePrecision"]), int(s["quantityPrecision"])
+    except Exception as e:
+        logging.warning("⚠️ _get_precision failed for %s: %s", symbol, e)
+    return 4, 3
+
+def _sign(params: dict) -> str:
+    query = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
+    return hmac.new(SECRET.encode(), query.encode(), hashlib.sha256).hexdigest()
+
 def _private_request(method: str, endpoint: str, params: dict) -> dict:
-    params = params.copy()  # копируем, чтобы не менять оригинал
+    # Копируем параметры, чтобы не менять оригинал
+    params = params.copy()
 
     # 1. Добавляем timestamp (без signature!)
     params["timestamp"] = int(time.time() * 1000)
@@ -22,35 +58,70 @@ def _private_request(method: str, endpoint: str, params: dict) -> dict:
     query_str = "&".join(f"{k}={v}" for k, v in sorted_items)
 
     # 3. Подписываем строку (без signature!)
-    signature = _sign(params)  # ← _sign использует sorted(params.items()) — без signature!
+    signature = _sign(params)
 
     # 4. Теперь добавляем signature в params — уже после подписи
     params["signature"] = signature
 
-    # 5. Отправляем запрос — requests добавит signature в URL
+    # 5. Формируем URL
     url = ENDPOINT.rstrip() + endpoint.lstrip()
     headers = {
         "X-BX-APIKEY": API_KEY,
-        "Content-Type": "application/x-www-form-urlencoded",  # ← добавь это
+        "Content-Type": "application/x-www-form-urlencoded",
     }
 
-    # ← маяк (можно оставить)
+    # 🌐 ПОПЫТКА ИСПОЛЬЗОВАТЬ ПРОКСИ — ДИНАМИЧЕСКИЙ ВЫБОР
+    proxies = None
+    try:
+        # Получаем список бесплатных прокси (работает на Render)
+        resp = requests.get("https://www.free-proxy-list.net/", timeout=8)
+        if resp.status_code == 200:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            proxies_list = []
+            for row in soup.find('table', id='proxylisttable').find_all('tr')[1:10]:
+                cols = row.find_all('td')
+                if len(cols) > 6 and cols[6].text.strip() == 'yes':  # HTTPS = yes
+                    ip = cols[0].text.strip()
+                    port = cols[1].text.strip()
+                    proxies_list.append(f"http://{ip}:{port}")
+            if proxies_list:
+                proxies = {"http": random.choice(proxies_list), "https": random.choice(proxies_list)}
+                logging.info("🔄 Используем прокси: %s", proxies["http"])
+    except Exception as e:
+        logging.warning("⚠️ Не удалось получить прокси: %s", e)
+
+    # 6. Отправляем запрос — ОДИН РАЗ — с подписью и прокси (если есть)
     print(f"=== MAYAK ===")
     print(f"METHOD : {method}")
     print(f"URL    : {url}")
     print(f"QUERY  : {query_str}")  # ← ЭТО СТРОКА, КОТОРУЮ ПОДПИСАЛИ
     print(f"SIGNATURE: {signature}")
-    print(f"HEADERS: {headers}")  # ← теперь с Content-Type
+    print(f"HEADERS: {headers}")
+    print(f"PROXIES: {proxies}")
     print(f"=== END MAYAK ===")
 
-    r = requests.request(method, url, params=params, headers=headers, timeout=REQ_TIMEOUT)
+    try:
+        r = requests.request(
+            method,
+            url,
+            params=params,
+            headers=headers,
+            timeout=REQ_TIMEOUT,
+            proxies=proxies,
+            verify=False  # Игнорируем SSL — прокси могут быть ненадёжными
+        )
 
-    print(f"STATUS : {r.status_code}")
-    print(f"TEXT   : {r.text[:300]}")
-    print(f"=== END MAYAK ===")
+        print(f"STATUS : {r.status_code}")
+        print(f"TEXT   : {r.text[:300]}")
+        print(f"=== END MAYAK ===")
 
-    r.raise_for_status()
-    return r.json()
+        r.raise_for_status()
+        return r.json()
+
+    except Exception as e:
+        logging.error("❌ Ошибка при запросе через прокси: %s", e)
+        raise RuntimeError(f"Не удалось выполнить запрос: {e}")
 
 def _get_precision(symbol: str) -> Tuple[int, int]:
     public_sym = symbol
