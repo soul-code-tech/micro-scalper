@@ -107,12 +107,13 @@ class BingXAsync:
         if not data:
             raise RuntimeError("Empty balance data")
 
-        # Ищем -USDT
+        # ищем именно «USDT», а не «-USDT»
         for entry in data:
-            if entry.get("asset") == "-USDT":
-                equity_str = entry.get("equity", "0")
-                try:
-                    return float(equity_str)
+            if entry.get("asset") == "USDT":
+                return float(entry.get("equity", 0))
+
+        # fallback – первый актив
+        return float(data[0].get("equity", 0))
                 except ValueError as e:
                     raise RuntimeError(f"Cannot parse equity '{equity_str}': {e}")
     
@@ -155,8 +156,9 @@ class BingXAsync:
         return await self._signed_request("GET", "/openApi/swap/v2/user/positions")
     
     async def get_contract_info(self, symbol: str) -> dict:
-        """Возвращает параметры контракта (minOrderQty, lotSize и т.д.)"""
-        return await self._signed_request("GET", "/openApi/swap/v2/quote/contracts", {"symbol": symbol})
+        """Минимальные шаги и лоты контракта (публично)"""
+        return await self._public_get("/openApi/swap/v2/quote/contracts",
+                                      {"symbol": symbol})
 
     async def cancel_all(self, symbol: str):
         await self._signed_request("DELETE", "/openApi/swap/v2/trade/allOpenOrders", {"symbol": symbol})
