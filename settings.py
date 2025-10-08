@@ -17,7 +17,7 @@ class ScalperConfig:
     MAX_POS_NOMINAL: float = 20.0       # ← не больше 20 $ на одну позицию
     
     # --- плечо и лимиты ---
-    LEVERAGE: int = 2
+    LEVERAGE: int = 10
     LOT_STEP: float = 0.001
     MAX_NOMINAL_USD: float = 600_000.0  # лимит BingX для плеча (новое)
 
