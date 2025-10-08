@@ -97,9 +97,14 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
             timeout=REQ_TIMEOUT
         )
         r.raise_for_status()
-        order_id = r.json()["data"]["order"]["id"]
+        resp = r.json()
+        print("DBG order response", symbol, resp)  # ← покажет, что пришло
+        if not resp or resp.get("code") != 0 or "data" not in resp or not resp["data"] or "order" not in resp["data"]:
+            logging.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
+            return None
+        order_id = resp["data"]["order"]["id"]
     except Exception as e:
-        logging.warning("⚠️ %s – не удалось разместить ордер: %s", symbol, e)
+        logging.warning("⚠️ %s – исключение при размещении ордера: %s", symbol, e)
         return None
 
     logging.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
