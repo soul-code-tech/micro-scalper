@@ -14,7 +14,8 @@ class ScalperConfig:
     MAX_BALANCE_PC: float = 0.05        # макс % баланса в одной сделке (новое)
     TAKE_PROFIT_PCT: float = 0.02       # закрыть всё при +2 % к старту (новое)
     MIN_NOTIONAL_FALLBACK: float = 1.0  # мин $ на вход
-
+    MAX_POS_NOMINAL: float = 20.0       # ← не больше 20 $ на одну позицию
+    
     # --- плечо и лимиты ---
     LEVERAGE: int = 2
     LOT_STEP: float = 0.001
