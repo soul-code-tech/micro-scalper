@@ -48,77 +48,33 @@ def _sign(params: dict) -> str:
     return hmac.new(SECRET.encode(), query.encode(), hashlib.sha256).hexdigest()
 
 def _private_request(method: str, endpoint: str, params: dict) -> dict:
-    # Копируем параметры, чтобы не менять оригинал
     params = params.copy()
-
-    # 1. Добавляем timestamp (без signature!)
     params["timestamp"] = int(time.time() * 1000)
 
-    # 2. Сортируем параметры и создаем строку для подписи — БЕЗ signature!
+    # 1. сортируем и строим query-string
     sorted_items = sorted(params.items())
     query_str = "&".join(f"{k}={v}" for k, v in sorted_items)
 
-    # 3. Подписываем строку (без signature!)
-    signature = _sign(params)
+    # 2. подпись
+    signature = hmac.new(SECRET.encode(), query_str.encode(), hashlib.sha256).hexdigest()
+    query_str += f"&signature={signature}"
 
-    # 4. Теперь добавляем signature в params — уже после подписи
-    params["signature"] = signature
+    # 3. финальный URL
+    url = ENDPOINT.rstrip("/") + "/" + endpoint.lstrip("/") + "?" + query_str
+    headers = {"X-BX-APIKEY": API_KEY}
 
-    # 5. Формируем URL
-    url = ENDPOINT.rstrip() + endpoint.lstrip()
-    headers = {
-        "X-BX-APIKEY": API_KEY,
-        "Content-Type": "application/x-www-form-urlencoded",
-    }
+    # 4. запрос БЕЗ params, чтобы requests не трогал порядок
+    r = requests.request(method, url, headers=headers, timeout=REQ_TIMEOUT, verify=False)
 
-    # 🌐 ПОПЫТКА ИСПОЛЬЗОВАТЬ ПРОКСИ — ДИНАМИЧЕСКИЙ ВЫБОР
-    proxies = None
-    try:
-        # Получаем список бесплатных прокси (работает на Render)
-        resp = requests.get("https://www.free-proxy-list.net/", timeout=8)
-        if resp.status_code == 200:
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            proxies_list = []
-            for row in soup.find('table', id='proxylisttable').find_all('tr')[1:10]:
-                cols = row.find_all('td')
-                if len(cols) > 6 and cols[6].text.strip() == 'yes':  # HTTPS = yes
-                    ip = cols[0].text.strip()
-                    port = cols[1].text.strip()
-                    proxies_list.append(f"http://{ip}:{port}")
-            if proxies_list:
-                proxies = {"http": random.choice(proxies_list), "https": random.choice(proxies_list)}
-                logging.info("🔄 Используем прокси: %s", proxies["http"])
-    except Exception as e:
-        logging.warning("⚠️ Не удалось получить прокси: %s", e)
+    print("=== MAYAK ===")
+    print("METHOD :", method)
+    print("URL    :", url)
+    print("STATUS :", r.status_code)
+    print("TEXT   :", r.text[:300])
+    print("=== END ===")
 
-    # 6. Отправляем запрос — ОДИН РАЗ — с подписью и прокси (если есть)
-    print(f"=== MAYAK ===")
-    print(f"METHOD : {method}")
-    print(f"URL    : {url}")
-    print(f"QUERY  : {query_str}")  # ← ЭТО СТРОКА, КОТОРУЮ ПОДПИСАЛИ
-    print(f"SIGNATURE: {signature}")
-    print(f"HEADERS: {headers}")
-    print(f"PROXIES: {proxies}")
-    print(f"=== END MAYAK ===")
-
-    try:
-        r = requests.request(
-            method,
-            url,
-            params=params,
-            headers=headers,
-            timeout=REQ_TIMEOUT,
-            proxies=proxies,
-            verify=False  # Игнорируем SSL — прокси могут быть ненадёжными
-        )
-
-        print(f"STATUS : {r.status_code}")
-        print(f"TEXT   : {r.text[:300]}")
-        print(f"=== END MAYAK ===")
-
-        r.raise_for_status()
-        return r.json()
+    r.raise_for_status()
+    return r.json()
 
     except Exception as e:
         logging.error("❌ Ошибка при запросе через прокси: %s", e)
