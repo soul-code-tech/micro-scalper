@@ -164,8 +164,8 @@ async def think(ex: BingXAsync, sym: str, equity: float):
 
     order_side = "BUY" if side == "LONG" else "SELL"
 
-    log.info("🧠 %s tf=%s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
-             sym, tf, atr_pc, vol_usd, side, score["long"], score["short"])
+    log.info("DBG %s atr=%.4f vol=%.0f$ side=%s long=%.2f short=%.2f",
+         sym, atr_pc, vol_usd, side, score["long"], score["short"])
     
     
 
