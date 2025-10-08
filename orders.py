@@ -101,10 +101,12 @@ async def limit_entry(ex: BingXAsync,
         "leverage":     str(leverage),
     }
 
-    resp = await ex._signed_request("POST", "/openApi/swap/v2/trade/order", params)
-    if resp.get("code") != 0:
-        log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
-        return None
+        resp = await ex._signed_request("POST", "/openApi/swap/v2/trade/order", params)
+    if resp.get("code") != 0 or "data" not in resp or "order" not in resp["data"]:
+            log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
+            return None
+
+    order_id = resp["data"]["order"]["id"]
 
     order_id = resp["data"]["order"]["id"]
     log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
