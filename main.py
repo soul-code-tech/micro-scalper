@@ -296,7 +296,7 @@ async def download_weights_once():
 
 
 async def trade_loop(ex: BingXAsync):
-    global CYCLE          # ← объявляем, что будем менять глобальную переменную
+    global CYCLE, PEAK_BALANCE, POS, OPEN_ORDERS
     await load_min_lot_cache(ex)
     while True:
         CYCLE += 1
