@@ -42,6 +42,9 @@ async def limit_entry(ex: BingXAsync,
                       tp_price: float
                       ) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
+    # ---------- объём ----------
+    qty_usd  = usd_qty * leverage
+    qty_coin = round(qty_usd / entry_px, lot_prec)   # ← расчёт ДО корректировок                  
 
     # ---------- мин-лот и шаг ----------
     try:
@@ -67,14 +70,6 @@ async def limit_entry(ex: BingXAsync,
         entry_px = float(book["bids"][0][0]) - 10 ** -price_prec
     else:
         entry_px = float(book["asks"][0][0]) + 10 ** -price_prec
-
-    # ---------- объём ----------
-    qty_usd  = usd_qty * leverage
-    qty_coin = round(qty_usd / entry_px, lot_prec)
-
-    # ---------- корректировка до мин-лота ----------
-    qty_coin = max(qty_coin, min_qty)
-    qty_coin = math.ceil(qty_coin / step_size) * step_size
 
     # ---------- строковые значения ----------
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
