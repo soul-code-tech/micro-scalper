@@ -114,7 +114,7 @@ def limit_entry(symbol: str, side: str, usd_qty: float, leverage: int,
         return None
     # Для приватных API — символ БЕЗ дефиса
     symbol_for_sign = symbol.replace("-", "")
-         params = {
+    params = {
         "symbol": symbol_private, 
         "side": side,
         "type": "LIMIT",
