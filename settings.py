@@ -19,7 +19,7 @@ class ScalperConfig:
     # --- плечо и лимиты ---
     LEVERAGE: int = 10
     LOT_STEP: float = 0.001
-    MAX_NOMINAL_USD: float = 600_000.0  # лимит BingX для плеча (новое)
+    MAX_NOMINAL_USD: float = 46.0  # лимит BingX для плеча (новое)
 
     # --- стоп-лосс / тейк-профит ---
     ATR_MULT_SL: float = 0.7
