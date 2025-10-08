@@ -117,9 +117,11 @@ class BingXAsync:
                 except ValueError as e:
                     raise RuntimeError(f"Cannot parse equity '{equity_str}': {e}")
     
-        # Если -USDT не найден — берём первый актив
-        equity_str = data[0].get("equity", "0")
-        return float(equity_str)
+        try:
+            equity_str = entry.get("equity", "0")
+            return float(equity_str)
+        except ValueError as e:
+            raise RuntimeError(f"Cannot parse equity '{equity_str}': {e}")
 
     async def set_leverage(self, symbol: str, leverage: int, side: str) -> dict:
         return await self._signed_request("POST", "/openApi/swap/v2/trade/leverage",
