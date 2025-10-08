@@ -120,8 +120,15 @@ async def manage_position(ex: BingXAsync, symbol: str, api_pos: dict):
         return
     
     mark = float(api_pos["markPrice"])
-    side = pos["side"]
-    risk_dist = abs(pos["entry"] - pos["sl_orig"])
+    equity = await ex.balance()          # берём актуальный баланс
+    dd = (PEAK_BALANCE - equity) / PEAK_BALANCE * 100
+    if dd > CONFIG.MAX_DD_STOP:          # 10 %
+        log.warning(f"🛑 MAX_DD_STOP {dd:.2f}% – закрываю {symbol}")
+        await ex.close_position(symbol,
+                                "SELL" if pos["side"] == "LONG" else "BUY",
+                                pos["qty"])
+        POS.pop(symbol, None)
+        return
     
     # TP1: 60% при достижении 1.4×ATR
     if not pos.get("tp1_done"):
@@ -143,16 +150,13 @@ async def manage_position(ex: BingXAsync, symbol: str, api_pos: dict):
             log.info(f"🛡️ {symbol} breakeven @ {pos['entry']:.5f}")
     
     # TRAILING STOP для оставшихся 40%
-    if pos.get("tp1_done"):
-        trail_dist = abs(pos["entry"] - pos["sl_orig"]) * CONFIG.TRAIL_MULT
-        if side == "LONG":
-            new_sl = mark - trail_dist
-            if new_sl > pos["sl"]:
-                pos["sl"] = new_sl
-        else:
-            new_sl = mark + trail_dist
-            if new_sl < pos["sl"]:
-                pos["sl"] = new_sl
+    trail_dist = abs(pos["entry"] - pos["sl_orig"]) * CONFIG.TRAIL_MULT
+    if pos["side"] == "LONG":
+        new_sl = mark - trail_dist
+        pos["sl"] = max(pos["sl"], new_sl)   # только вперёд
+    else:
+        new_sl = mark + trail_dist
+        pos["sl"] = min(pos["sl"], new_sl)
     
     # STOP-OUT
     if (side == "LONG" and mark <= pos["sl"]) or (side == "SHORT" and mark >= pos["sl"]):
