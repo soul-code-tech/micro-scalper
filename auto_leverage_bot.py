@@ -21,27 +21,43 @@ exchange = ccxt.bingx({
     "options": {"defaultType": "future"},
 })
 
-def auto_leverage_size(symbol, usd_risk, max_notional):
-    """Возвращает (leverage, qty_coin)"""
-    # 1. лимиты биржи
+def auto_leverage_size(symbol: str, usd_risk: float, max_own: float):
+    """
+    Возвращает (leverage, qty_coin, notional_usd)
+    Гарантированно не превышает ни биржевой, ни ваш лимит.
+    """
+    # 1. Инфа о тирах и текущая цена
     tiers = exchange.fetch_leverage_tiers([symbol])[symbol]
-    max_lev = min(tier["maxLeverage"] for tier in tiers)
-    max_n   = min(max_notional, max(tier["maxNotional"] for tier in tiers))
-
-    # 2. цена
     price = float(exchange.fetch_ticker(symbol)["last"])
 
-    # 3. максимально возможное кол-во монет
-    qty = max_n / price
-    leverage = min(max_lev, max_n / usd_risk)
+    # 2. Биржевые ограничения (берём самый жёсткий тир)
+    max_lev_exchange = min(t["maxLeverage"] for t in tiers)
+    max_n_by_exchange = max(t["notionalCap"] for t in tiers)   # 1 200 000 у BingX
 
-    # 4. округляем до шага лота
-    qty = float(exchange.amount_to_precision(symbol, qty))
-    return round(leverage, 1), qty
+    # 3. Итоговый потолок номинала
+    cap = min(max_own, max_n_by_exchange)
+
+    # 4. Максимально возможное кол-во монет
+    qty_max = cap / price
+
+    # 5. Плечо, при котором номинал = cap при usd_risk
+    leverage = min(max_lev_exchange, cap / usd_risk)
+
+    # 6. Округляем до шага лота
+    qty = float(exchange.amount_to_precision(symbol, qty_max))
+
+    # 7. Если получилось меньше минимального – поднимаем до минимума
+    min_n = CONFIG["min_notional"]
+    if qty * price < min_n:
+        qty = float(exchange.amount_to_precision(symbol, min_n / price))
+
+    final_nominal = qty * price
+    lev = min(leverage, max_lev_exchange)
+    return round(lev, 1), qty, final_nominal
 
 def open_long():
-    lev, qty = auto_leverage_size(SYMBOL, USD_RISK, MAX_NOTIONAL)
-    print(f"Автоплечо {lev}×, объём {qty} LTC")
+    lev, qty, nom = auto_leverage_size(SYMBOL, USD_RISK, MAX_NOTIONAL)
+    print(f"Автоплечо {lev}×, объём {qty} LTC, номинал ${nom:.2f}")
 
     # выставляем плечо
     exchange.set_leverage(lev, SYMBOL)
