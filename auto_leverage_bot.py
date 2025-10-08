@@ -11,8 +11,8 @@ import sys
 API_KEY     = os.getenv("BINGX_KEY")   or "ВАШ_API_KEY"
 API_SECRET  = os.getenv("BINGX_SEC")   or "ВАШ_SECRET"
 SYMBOL      = "LTC-USDT"               # торговая пара
-USD_RISK    = 2.5                      # сколько USD хотите рискнуть
-MAX_NOTIONAL= 150_000                  # ваш жёсткий потолок номинала
+USD_RISK    = 1.0                      # сколько USD хотите рискнуть
+MAX_NOTIONAL= 600_000                  # ваш жёсткий потолок номинала
 # --------------------------------------------------------
 
 exchange = ccxt.bingx({
