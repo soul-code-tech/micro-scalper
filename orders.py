@@ -57,11 +57,10 @@ def _get_precision(symbol: str) -> Tuple[int, int]:
 async def limit_entry(ex: BingXAsync,
                       symbol: str,
                       side: str,
-                      usd_qty: float,
-                      leverage: int,
+                      qty_coin: float,   # ← готовое кол-во монет
+                      entry_px: float,   # ← цена входа
                       sl_price: float,
-                      tp_price: float
-                      ) -> Optional[Tuple[str, float, float]]:
+                      tp_price: float) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
 
     # ---------- стакан ----------
@@ -79,17 +78,18 @@ async def limit_entry(ex: BingXAsync,
     qty_usd  = usd_qty * leverage
     qty_coin = round(qty_usd / entry_px, lot_prec)
 
-    # ---------- мин-лот и шаг ----------
+    
+    # ---------- округляем до шага ----------
     min_qty, step_size = get_min_lot(symbol)
+    qty_coin = max(qty_coin, min_qty)
+    qty_coin = math.ceil(qty_coin / step_size) * step_size
+
 
     # ---------- корректировка ----------
     qty_coin = max(qty_coin, min_qty)
     qty_coin = math.ceil(qty_coin / step_size) * step_size
 
-    # ---------- строки ----------
-    entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
-    qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
-
+   
     # ---------- проверка лимита номинала ----------
     log.debug("DEBUG: qty_coin_str=%s, entry_px_str=%s", qty_coin_str, entry_px_str)                      
     nominal_usd = float(qty_coin_str) * float(entry_px_str)
@@ -116,7 +116,6 @@ async def limit_entry(ex: BingXAsync,
         "positionSide": "LONG" if side == "BUY" else "SHORT",
         "price":        entry_px_str,
         "quantity":     qty_coin_str,
-        "leverage":     str(leverage),
     }
 
     resp = await ex._signed_request("POST", "/openApi/swap/v2/trade/order", params)
