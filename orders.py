@@ -4,7 +4,9 @@ import time
 import math
 import logging
 import requests
-from typing import Optional, Tuple
+import asyncio
+import aiohttp
+from typing import Optional, Tuple, Dict
 from exchange import BingXAsync
 from settings import CONFIG
 
@@ -15,6 +17,25 @@ ENDPOINT = "https://open-api.bingx.com"
 API_KEY = os.getenv("BINGX_API_KEY")
 SECRET = os.getenv("BINGX_SECRET_KEY")
 REQ_TIMEOUT = 5
+
+async def load_min_lot_cache(ex: BingXAsync) -> None:
+    """Один раз при старте качаем мин-лоты всех контрактов."""
+    global _MIN_LOT_CACHE
+    try:
+        info = await ex._signed_request("GET", "/openApi/swap/v2/quote/contracts")
+        for item in info["data"]:
+            _MIN_LOT_CACHE[item["symbol"]] = {
+                "minQty":   float(item["minQty"]),
+                "stepSize": float(item["stepSize"]),
+            }
+        log.info("✅ Loaded minQty/stepSize for %d contracts", len(_MIN_LOT_CACHE))
+    except Exception as e:
+        log.warning("⚠️  Failed to load min-lot cache: %s", e)
+        _MIN_LOT_CACHE = {}
+
+def get_min_lot(symbol: str) -> tuple[float, float]:
+    data = _MIN_LOT_CACHE.get(symbol, {})
+    return data.get("minQty", 156623.0), data.get("stepSize", 1.0)
 
 
 def _get_precision(symbol: str) -> Tuple[int, int]:
@@ -59,15 +80,7 @@ async def limit_entry(ex: BingXAsync,
     qty_coin = round(qty_usd / entry_px, lot_prec)
 
     # ---------- мин-лот и шаг ----------
-    try:
-        info = await ex.get_contract_info(symbol)
-        data0 = info["data"][0]
-        min_qty   = float(data0.get("minQty", 149068.0))
-        step_size = float(data0.get("stepSize", 1.0))
-    except Exception as e:
-        log.warning("⚠️ %s – не смог получить minQty/stepSize: %s", symbol, e)
-        min_qty   = 149068.0
-        step_size = 1.0
+    min_qty, step_size = get_min_lot(symbol)
 
     # ---------- корректировка ----------
     qty_coin = max(qty_coin, min_qty)
