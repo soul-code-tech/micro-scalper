@@ -90,6 +90,22 @@ async def limit_entry(ex: BingXAsync,
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
     qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
 
+    # ---------- проверка лимита номинала ----------
+    nominal_usd = float(qty_coin_str) * float(entry_px_str)
+    max_nominal = 600_000.0
+    if nominal_usd > max_nominal:
+        new_leverage = max(1, int(max_nominal / nominal_usd))
+        log.warning("♻️ %s nominal %.2f$ > max %.0f$ – понижаю плечо до %d×",
+                    symbol, nominal_usd, max_nominal, new_leverage)
+        leverage = new_leverage
+        # пересчитываем всё под новое плечо
+        qty_usd  = usd_qty * leverage
+        qty_coin = round(qty_usd / entry_px, lot_prec)
+        qty_coin = max(qty_coin, min_qty)
+        qty_coin = math.ceil(qty_coin / step_size) * step_size
+        qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
+        entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
+
     params = {
         "symbol":       symbol,
         "side":         side,
@@ -101,12 +117,11 @@ async def limit_entry(ex: BingXAsync,
         "leverage":     str(leverage),
     }
 
-        resp = await ex._signed_request("POST", "/openApi/swap/v2/trade/order", params)
+    resp = await ex._signed_request("POST", "/openApi/swap/v2/trade/order", params)
     if resp.get("code") != 0 or "data" not in resp or "order" not in resp["data"]:
-            log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
-            return None
+        log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
+        return None
     log.debug("RAW RESP: %s", resp)
-    
     order_id = resp["data"]["order"]["id"]
     log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
              symbol, side, entry_px_str, qty_coin_str, order_id)
