@@ -18,7 +18,7 @@ from store import cache
 from settings import CONFIG
 from tf_selector import best_timeframe
 from health_aio import start_health
-from orders import limit_entry, await_fill_or_cancel, limit_sl_tp, _private_request
+from orders import limit_entry, await_fill_or_cancel, limit_sl_tp
 
 logging.getLogger("orders").setLevel(logging.DEBUG)
 
