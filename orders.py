@@ -210,7 +210,7 @@ async def limit_entry(
 async def await_fill_or_cancel(ex: BingXAsync,
                                order_id: str,
                                symbol: str,
-                               max_sec: float = 8) -> Optional[float]:
+                               max_sec: float = 60) -> Optional[float]:
     t0 = time.time()
     while time.time() - t0 < max_sec:
         try:
