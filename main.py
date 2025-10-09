@@ -38,36 +38,28 @@ log = logging.getLogger("scalper")
 log = logging.getLogger("scalper")
 
 # ---------- СКАЧИВАНИЕ ВЕСОВ ИЗ ВЕТКИ weight ----------
-import os, requests
+# ---------- СКАЧИВАНИЕ ВЕСОВ ИЗ ПОСЛЕДНЕГО КОММИТА ----------
+import requests, os
 
-WEIGHTS_BASE_URL = "https://raw.githubusercontent.com/soul-code-tech/micro-scalper/weight/weights"
-LOCAL_WEIGHTS_DIR = os.path.join(os.path.dirname(__file__), "weights")
+WEIGHTS_URL = "https://github.com/soul-code-tech/micro-scalper/raw/weights~1/weights"
+LOCAL_DIR = os.path.join(os.path.dirname(__file__), "weights")
+os.makedirs(LOCAL_DIR, exist_ok=True)
 
-os.makedirs(LOCAL_WEIGHTS_DIR, exist_ok=True)
-
-WEIGHT_FILES = [
-    "DOGEUSDT_5m.pkl",
-    "LTCUSDT_5m.pkl",
-    "SUIUSDT_5m.pkl",
-    "SHIBUSDT_5m.pkl",
-    "BNBUSDT_5m.pkl",
-    "XRPUSDT_5m.pkl",
+FILES = [
+    "DOGEUSDT_5m.pkl", "LTCUSDT_5m.pkl", "SUIUSDT_5m.pkl",
+    "SHIBUSDT_5m.pkl", "BNBUSDT_5m.pkl", "XRPUSDT_5m.pkl",
 ]
 
-for fname in WEIGHT_FILES:
-    local_path = os.path.join(LOCAL_WEIGHTS_DIR, fname)
-    if not os.path.exists(local_path):
-        url = f"{WEIGHTS_BASE_URL}/{fname}"
-        log.info("📥 Скачиваю %s...", fname)
-        try:
-            r = requests.get(url, timeout=15)
-            r.raise_for_status()
-            with open(local_path, "wb") as f:
-                f.write(r.content)
-            log.info("✅ %s скачан", fname)
-        except Exception as e:
-            log
-log.info(f"Загружено данных по лотам для {len(_MIN_LOT_CACHE)} символов")
+for f in FILES:
+    path = os.path.join(LOCAL_DIR, f)
+    if not os.path.exists(path):
+        url = f"{WEIGHTS_URL}/{f}"
+        log.info("📥 Скачиваю %s...", f)
+        r = requests.get(url, timeout=15)
+        r.raise_for_status()
+        with open(path, "wb") as wf:
+            wf.write(r.content)
+        log.info("✅ %s скачан", f)
 # ---------- ПРОВЕРКА ВЕСОВ ----------
 from strategy import MODEL_DIR, load_model
 log.info("📁 MODEL_DIR = %s", MODEL_DIR)
