@@ -125,6 +125,9 @@ async def limit_entry(ex: BingXAsync,
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
     qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
 
+    # ---------- определение opposite ----------
+    opposite = "SELL" if side == "BUY" else "BUY"
+
     # ---------- рыночный вход (убрать Post-only) ----------
     params = {
         "symbol":       symbol,
