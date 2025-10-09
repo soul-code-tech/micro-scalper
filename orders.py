@@ -119,7 +119,14 @@ async def limit_entry(ex: BingXAsync,
     if not book or not book.get("bids") or not book.get("asks"):
         log.warning("⚠️ %s – пустой стакан", symbol)
         return None
-
+        
+    # ---------- СВОБОДНАЯ МАРЖА ----------
+    free_margin = await ex.get_free_margin()
+    required_margin = (qty_coin * entry_px) / CONFIG.LEVERAGE * 1.1  # 10 % запас
+    if required_margin > free_margin:
+        log.info("♻️ %s – не хватает свободной маржи: нужно %.2f, есть %.2f",
+                 symbol, required_margin, free_margin)
+        return None
     # Рассчитываем цену лимитного входа
     tick = 10 ** -price_prec
     if side == "BUY":  # LONG - покупаем чуть ниже текущей цены
