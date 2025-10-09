@@ -10,15 +10,15 @@ class ScalperConfig:
 
     # --- риск и деньги ---
     MAX_POS: int = 10                    # макс одновременных позиций
-    RISK_PER_TRADE: float = 0.5        # 5 % от баланса на сделку
-    MAX_BALANCE_PC: float = 0.5        # макс % баланса в одной сделке (новое)
+    RISK_PER_TRADE: float = 1        # 5 % от баланса на сделку
+    MAX_BALANCE_PC: float = 1        # макс % баланса в одной сделке (новое)
     TAKE_PROFIT_PCT: float = 0.02       # закрыть всё при +2 % к старту (новое)
-    MIN_NOTIONAL_FALLBACK: float = 1.0  # мин $ на вход
+    MIN_NOTIONAL_FALLBACK: float = 2.0  # мин $ на вход
     MAX_POS_NOMINAL: float = 20.0       # ← не больше 20 $ на одну позицию
     
     # --- плечо и лимиты ---
     LEVERAGE: int = 10
-    LOT_STEP: float = 0.5
+    LOT_STEP: float = 1
     MAX_NOMINAL_USD: float = 46.0  # лимит BingX для плеча (новое)
 
     # --- стоп-лосс / тейк-профит ---
@@ -32,7 +32,7 @@ class ScalperConfig:
     MIN_ATR_PC: float = 0.00015
     MAX_SPREAD: float = 0.0010
     MIN_VOL_USD: int = 30_000
-    MAX_DD_STOP: float = 0.5         # % просадки до стопа
+    MAX_DD_STOP: float = 0.5        # % просадки до стопа
 
     # --- волатильность под символ ---
     TUNE: Dict[str, Dict[str, float]] = field(default_factory=lambda: {
