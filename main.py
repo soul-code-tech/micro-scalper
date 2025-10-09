@@ -37,32 +37,22 @@ logging.basicConfig(
 log = logging.getLogger("scalper")
 log = logging.getLogger("scalper")
 
-# ---------- СКАЧИВАНИЕ ВЕСОВ ИЗ ПОСЛЕДНЕГО КОММИТА ВЕТКИ weights ----------
+# ---------- СКАЧИВАНИЕ ВЕСОВ из папки weights ветки weights ----------
 import os, requests
 
-OWNER_REPO = "soul-code-tech/micro-scalper"
-BRANCH     = "weights"
-LOCAL_DIR  = os.path.join(os.path.dirname(__file__), "weights")
-FILES      = [
+BASE_RAW = "https://raw.githubusercontent.com/soul-code-tech/micro-scalper/weights/weights"
+LOCAL_DIR = os.path.join(os.path.dirname(__file__), "weights")
+os.makedirs(LOCAL_DIR, exist_ok=True)
+
+FILES = [
     "DOGEUSDT_5m.pkl", "LTCUSDT_5m.pkl", "SUIUSDT_5m.pkl",
     "SHIBUSDT_5m.pkl", "BNBUSDT_5m.pkl", "XRPUSDT_5m.pkl",
 ]
 
-# последний коммит ветки weights
-try:
-    resp = requests.get(f"https://api.github.com/repos/{OWNER_REPO}/branches/{BRANCH}", timeout=10)
-    resp.raise_for_status()
-    sha = resp.json()["commit"]["sha"]
-except Exception as e:
-    log.error("❌ Не удалось получить sha ветки weights: %s", e)
-    sha = "weights"  # fallback
-
-os.makedirs(LOCAL_DIR, exist_ok=True)
-
 for fname in FILES:
     local_path = os.path.join(LOCAL_DIR, fname)
     if not os.path.exists(local_path):
-        url = f"https://raw.githubusercontent.com/{OWNER_REPO}/{sha}/{fname}"
+        url = f"{BASE_RAW}/{fname}"
         log.info("📥 Скачиваю %s...", fname)
         try:
             r = requests.get(url, timeout=15)
@@ -70,8 +60,13 @@ for fname in FILES:
             with open(local_path, "wb") as f:
                 f.write(r.content)
             log.info("✅ %s скачан", fname)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                log.warning("⚠️ %s не найден на GitHub, пропуск", fname)
+            else:
+                log.error("❌ %s – HTTP %d: %s", fname, e.response.status_code, e)
         except Exception as e:
-            log.error("⚠️ Не удалось скачать %s: %s", fname, e)
+            log.error("❌ %s – ошибка: %s", fname, e)
 # ---------- ПРОВЕРКА ВЕСОВ ----------
 from strategy import MODEL_DIR, load_model
 log.info("📁 MODEL_DIR = %s", MODEL_DIR)
