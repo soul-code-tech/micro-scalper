@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 import concurrent.futures
 from typing import Dict, List
@@ -93,6 +94,22 @@ async def main():
     async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
         # Загружаем мин-лоты для всех контрактов
         await load_min_lot_cache(ex)
+        # ---------- СИНХРОНИЗАЦИЯ ПОЗИЦИЙ ПРИ СТАРТЕ ----------
+        positions = await ex.fetch_positions()
+        api_pos = {p["symbol"]: p for p in positions.get("data", [])}
+        for sym, api in api_pos.items():
+            if float(api.get("positionAmt", 0)) != 0:
+                POS[sym] = dict(
+                    side="LONG" if float(api["positionAmt"]) > 0 else "SHORT",
+                    qty=abs(float(api["positionAmt"])),
+                    entry=float(api["entryPrice"]),
+                    sl_orig=float(api.get("stopLoss", 0)),
+                    tp=float(api.get("takeProfit", 0)),
+                    ts_open=time.time(),
+                )
+                log.info("📥 Синхронизировал %s: %s  qty=%.3f  entry=%.5f",
+                         sym, POS[sym]["side"], POS[sym]["qty"], POS[sym]["entry"])
+        
         
         # Основной торговый цикл
         while True:
