@@ -188,6 +188,7 @@ async def limit_entry(
     log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
              symbol, side, entry_px_str, qty_coin_str, order_id)
     return order_id, float(entry_px_str), float(qty_coin)
+    log.info("📊 %s final: qty=%.0f  price=%.8f  nominal=%.4f$", symbol, qty_coin, entry_px, nominal)
 # --------------------  ОЖИДАНИЕ / ОТМЕНА  --------------------
 async def await_fill_or_cancel(ex: BingXAsync,
                                order_id: str,
