@@ -58,10 +58,21 @@ async def load_min_lot_cache(ex: BingXAsync) -> None:
         log.warning("⚠️  Failed to load min-lot cache: %s", e)
         _MIN_LOT_CACHE = {}
 
+SAFE_MIN = {
+    "DOGE-USDT": (7.0, 1.0),
+    "LTC-USDT":  (0.1, 0.01),
+    "SUI-USDT":  (1.0, 1.0),
+    "SHIB-USDT": (100000.0, 1000.0),
+    "BNB-USDT":  (0.01, 0.001),
+    "XRP-USDT":  (1.0, 1.0),
+}
+
 def get_min_lot(symbol: str) -> tuple[float, float]:
     data = _MIN_LOT_CACHE.get(symbol, {})
-    min_qty = data.get("minQty")
-    step_size = data.get("stepSize")
+    if data:
+        return float(data["minQty"]), float(data["stepSize"])
+    # Fallback — точные значения BingX
+    return SAFE_MIN.get(symbol, (1.0, 0.001))
     
     if min_qty is None or step_size is None:
         log.error(f"⚠️ minQty/stepSize не найдены для {symbol}! Использую безопасные дефолты.")
