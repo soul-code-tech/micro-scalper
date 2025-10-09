@@ -14,10 +14,7 @@ from strategy import micro_score
 from risk import calc, max_drawdown_stop, Sizing
 from tf_selector import best_timeframe
 from health_aio import start_health
-from strategy import MODEL_DIR, load_model
-log.info("📁 MODEL_DIR = %s", MODEL_DIR)
-s, c, t = load_model("DOGE-USDT", "5m")
-log.info("📦 DOGE-USDT 5m  scaler=%s  clf=%s  thr=%.2f", s is not None, c is not None, t)
+
 
 # ---------- общий пул потоков ----------
 EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=2)
@@ -39,6 +36,11 @@ logging.basicConfig(
 )
 log = logging.getLogger("scalper")
 log.info(f"Загружено данных по лотам для {len(_MIN_LOT_CACHE)} символов")
+# ---------- ПРОВЕРКА ВЕСОВ ----------
+from strategy import MODEL_DIR, load_model
+log.info("📁 MODEL_DIR = %s", MODEL_DIR)
+s, c, t = load_model("DOGE-USDT", "5m")
+log.info("📦 DOGE-USDT 5m  scaler=%s  clf=%s  thr=%.2f", s is not None, c is not None, t)
 def calculate_used_nominal() -> float:
     """Считает общий номинал всех открытых позиций."""
     total = 0.0
