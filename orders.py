@@ -146,21 +146,38 @@ async def limit_entry(
             return None
         qty_coin = proposed_qty
 
-    # 5. Округление до мин-лота и шага
+    # ------------------------------------------------------------------
+    # 5. Округление до мин-лота и шага (BingX-safe)
+    # ------------------------------------------------------------------
     min_qty, step_size = get_min_lot(symbol)
+
+    # убеждаемся, что не меньше минимального допустимого
     qty_coin = max(qty_coin, min_qty)
+
+    # округляем ВВЕРХ до ближайшего кратного шагу
     qty_coin = math.ceil(qty_coin / step_size) * step_size
 
-    # 6. Финальная проверка nominal ≥ 0.01 USDT
+    # если шаг целый (например 1000 для SHIB) — убираем дробную часть
+    if step_size.is_integer():
+        qty_coin = int(qty_coin)
+
+    # строка количества без лишних нулей и точек
+    qty_coin_str = str(qty_coin)
+
+    # ------------------------------------------------------------------
+    # 6. Финальная проверка номинала
+    # ------------------------------------------------------------------
     nominal = qty_coin * entry_px
-    if nominal < 0.01:
+    if nominal < 0.01:                       # биржевой минимум 0.01 USDT
         log.info("♻️ %s – nominal %.5f < 0.01 USDT после округления, пропуск", symbol, nominal)
         return None
 
-    # 7. Форматирование строк
+    # ------------------------------------------------------------------
+    # 7. Форматирование цены (точность биржи + без лишних нулей)
+    # ------------------------------------------------------------------
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
-    qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
-
+    if "." not in entry_px_str:              # BingX требует десятичную точку
+        entry_px_str += ".0"
     # 8. Отправка лимит-ордера
     position_side = "LONG" if side == "BUY" else "SHORT"
     params = {
