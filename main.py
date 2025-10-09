@@ -92,6 +92,7 @@ async def main():
     
     # Запуск health endpoint
     asyncio.create_task(start_health())
+    port = 1000
     log.info("💓 Health endpoint started on port %d", port)
     # Создаем экземпляр BingXAsync
     async with BingXAsync(os.getenv("BINGX_API_KEY"), os.getenv("BINGX_SECRET_KEY")) as ex:
