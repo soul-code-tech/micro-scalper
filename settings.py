@@ -31,7 +31,7 @@ class ScalperConfig:
     # --- фильтры ---
     MIN_ATR_PC: float = 0.00015
     MAX_SPREAD: float = 0.0010
-    MIN_VOL_USD: int = 30_000
+    MIN_VOL_USD: int = 10_000
     MAX_DD_STOP: float = 0.5        # % просадки до стопа
 
     # --- волатильность под символ ---
