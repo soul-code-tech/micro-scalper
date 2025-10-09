@@ -151,7 +151,7 @@ async def limit_entry(
     qty_coin = max(qty_coin, min_qty)
     qty_coin = math.ceil(qty_coin / step_size) * step_size
 
-    # 6. Финальная проверка nominal
+    # 6. Финальная проверка nominal ≥ 0.01 USDT
     nominal = qty_coin * entry_px
     if nominal < 0.01:
         log.info("♻️ %s – nominal %.4f < 0.01 USDT после округления, пропуск", symbol, nominal)
