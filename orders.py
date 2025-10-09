@@ -81,7 +81,7 @@ def _get_precision(symbol: str) -> Tuple[int, int]:
 # --------------------  АСИНХРОННЫЙ ВХОД  --------------------
 async def limit_entry(ex: BingXAsync,
                       symbol: str,
-                      side: str,
+                      side: str,  # "BUY" для LONG, "SELL" для SHORT
                       qty_coin: float,
                       entry_px: float,
                       sl_price: float,
@@ -94,29 +94,29 @@ async def limit_entry(ex: BingXAsync,
         log.warning("⚠️ %s – пустой стакан", symbol)
         return None
 
+    # Рассчитываем цену лимитного входа
     tick = 10 ** -price_prec
-    if side == "BUY":
-        entry_px = float(book["bids"][0][0]) - tick * 5
-    else:
-        entry_px = float(book["asks"][0][0]) + tick * 5
+    if side == "BUY":  # LONG - покупаем чуть ниже текущей цены
+        entry_px = float(book["bids"][0][0]) - tick * 3
+    else:  # SHORT - продаем чуть выше текущей цены
+        entry_px = float(book["asks"][0][0]) + tick * 3
 
-    # ---------- макс. кол-во монет под маржу ----------
-    max_nom = equity * CONFIG.LEVERAGE * 0.90   # 89.64 $ при 9.96×20
-    max_coins_raw = max_nom / entry_px          # ≈ 25.96 монет
-    qty_coin = min(qty_coin, max_coins_raw)     # ← режем ДО ceil
+    # Ограничение размера позиции по доступной марже
+    max_nom = equity * CONFIG.LEVERAGE * 0.90
+    qty_coin = min(qty_coin, max_nom / entry_px)
 
-    # ---------- мин. номинал ----------
-    min_nom = 2.5                               # ваш лимит
+    # Проверка минимального номинала
+    min_nom = 2.5
     if qty_coin * entry_px < min_nom:
-        qty_coin = min_nom / entry_px           # ≥ 1 $
+        qty_coin = min_nom / entry_px
 
-    # ---------- теперь округляем ----------
+    # Округление количества
     min_qty, step_size = get_min_lot(symbol)
-    qty_coin = max(qty_coin, min_qty)           # не даёт быть < minQty
+    qty_coin = max(qty_coin, min_qty)
     qty_coin = math.ceil(qty_coin / step_size) * step_size
 
-    # ---------- итоговый контроль ----------
-    if qty_coin * entry_px > max_nom:           # если после ceil перелезли
+    # Финальная проверка
+    if qty_coin * entry_px > max_nom:
         qty_coin = math.floor(max_nom / entry_px / step_size) * step_size
 
     log.info("♻️ %s equity=%.2f$  max_nom=%.2f$  qty=%.6f  nominal=%.2f$",
@@ -125,26 +125,22 @@ async def limit_entry(ex: BingXAsync,
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
     qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
 
-    # ---------- определение opposite ----------
-    opposite = "SELL" if side == "BUY" else "BUY"
-
-    # ---------- определение positionSide ----------
-    position_side = "LONG" if side == "BUY" else "SHORT"
-
-    # ---------- рыночный вход (убрать Post-only) ----------
+    # Правильный лимитный ордер для входа
     params = {
         "symbol":       symbol,
-        "side":         opposite,
-        "type":         "STOP_MARKET",      # ← вместо "LIMIT"
-        "stopPrice":    str(sl_price),
-        "quantity":     str(qty_coin),
-        "positionSide": position_side,      # ← добавляем positionSide
+        "side":         side,  # Не opposite! BUY для LONG, SELL для SHORT
+        "type":         "LIMIT",
+        "timeInForce":  "PostOnly",
+        "price":        entry_px_str,
+        "quantity":     qty_coin_str,
+        "positionSide": "BOTH",  # Для перекрестной маржи обычно "BOTH"
     }
 
     resp = await ex._signed_request("POST", "/openApi/swap/v2/trade/order", params)
     if resp.get("code") != 0:
         log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
         return None
+        
     order_id = resp["data"]["order"]["id"]
     log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
              symbol, side, entry_px_str, qty_coin_str, order_id)
