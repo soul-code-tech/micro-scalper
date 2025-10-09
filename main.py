@@ -220,7 +220,7 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
 
     log.info(f"⏳ CALLING micro_score() for {symbol}")
     score = await asyncio.get_event_loop().run_in_executor(
-        concurrent.futures.ThreadPoolExecutor(max_workers=3),
+        concurrent.futures.ThreadPoolExecutor(max_workers=5),
         micro_score,
         klines, symbol, tf
     )
