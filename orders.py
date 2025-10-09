@@ -143,6 +143,11 @@ async def limit_entry(ex: BingXAsync,
     min_qty, step_size = get_min_lot(symbol)
     qty_coin = max(qty_coin, min_qty)
     qty_coin = math.ceil(qty_coin / step_size) * step_size
+    # ---------- ПОСЛЕ ОКРУГЛЕНИЯ ----------
+    nominal = qty_coin * entry_px
+    if nominal < 0.01:
+        log.info("♻️ %s – nominal %.4f < 0.01 USDT после округления, пропуск", symbol, nominal)
+        return None                      
 
     # ⚠️ УДАЛЕНО: проверка max_nom — она уже сделана в main.py
 
@@ -171,8 +176,9 @@ async def limit_entry(ex: BingXAsync,
         return None
 
     order_data = resp.get("data", {}).get("order", {})
-    if not order_data or "id" not in order_data:
-        log.warning("⚠️ %s – в ответе нет order.id: %s", symbol, resp)
+    order_id = order_data.get("orderId") or order_data.get("orderID")
+    if not order_id:
+        log.warning("⚠️ %s – нет orderId в ответе: %s", symbol, resp)
         return None
 
     order_id = order_data["id"]
