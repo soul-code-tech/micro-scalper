@@ -18,7 +18,15 @@ class BingXAsync:
         self.base = "https://open-api.bingx.com"  # ✅ ИСПРАВЛЕНО — УБРАНЫ ПРОБЕЛЫ!
         self._external_sess = session
         self.sess: Optional[aiohttp.ClientSession] = None
-
+                     
+    async def get_free_margin(self) -> float:
+        """Returns USDT amount available for **new** positions (cross-margin)."""
+        acc = await self._signed_request("GET", "/openApi/swap/v2/user/balance")
+        for b in acc["data"]["balance"]:
+            if b["asset"] == "USDT":
+                return float(b["availableBalance"])
+        return 0.0
+    
     async def __aenter__(self):
         if self._external_sess is None:
             timeout = aiohttp.ClientTimeout(total=10)
