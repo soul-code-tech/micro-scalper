@@ -106,8 +106,10 @@ async def main():
             
             try:
                 # Получаем текущий баланс
-                equity = await ex.balance()
-                log.info(f"Баланс: ${equity:.2f}")
+                free_margin = await ex.get_free_margin() 
+                equity        = free_margin          # работаем только на свободные деньги 
+                log.info("💰 Free margin: $%.2f", free_margin)()
+                
                 
                 # Обновляем пиковый баланс
                 if equity > PEAK_BALANCE or PEAK_BALANCE == 0:
