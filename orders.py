@@ -149,9 +149,9 @@ async def limit_sl_tp(ex: BingXAsync,
                       qty_coin: float,
                       sl_price: float,
                       tp_price: float) -> Tuple[str, str]:
-    opposite = "SELL" if side == "BUY" else "BUY"
     ids = []
     for name, px in (("SL", sl_price), ("TP", tp_price)):
+        opposite = "SELL" if side == "BUY" else "BUY"   # ← ЗДЕСЬ, внутри цикла
         params = {
             "symbol":       symbol,
             "side":         opposite,
