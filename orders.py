@@ -169,8 +169,8 @@ async def limit_entry(ex: BingXAsync,
     if resp.get("code") != 0:
         log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
         return None
-    # ✅ БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ order.id
-       order_data = resp.get("data", {}).get("order", {})
+
+    order_data = resp.get("data", {}).get("order", {})
     if not order_data or "id" not in order_data:
         log.warning("⚠️ %s – в ответе нет order.id: %s", symbol, resp)
         return None
