@@ -27,7 +27,7 @@ class ScalperConfig:
         **{s: {"MIN_ATR_PC": 0.00015, "MAX_SPREAD": 0.00060} for s in ("DOGE-USDT", "XRP-USDT")},
     })
     LOT_STEP: float = 0.001
-    LEVERAGE: int = 20
+    LEVERAGE: int = 10
     MIN_NOTIONAL_FALLBACK: float = 15.0
     MAX_BALANCE_PC: float = 0.05
 
