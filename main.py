@@ -14,6 +14,10 @@ from strategy import micro_score
 from risk import calc, max_drawdown_stop, Sizing
 from tf_selector import best_timeframe
 from health_aio import start_health
+from strategy import MODEL_DIR, load_model
+log.info("📁 MODEL_DIR = %s", MODEL_DIR)
+s, c, t = load_model("DOGE-USDT", "5m")
+log.info("📦 DOGE-USDT 5m  scaler=%s  clf=%s  thr=%.2f", s is not None, c is not None, t)
 
 # ---------- общий пул потоков ----------
 EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=2)
