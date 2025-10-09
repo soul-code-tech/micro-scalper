@@ -100,9 +100,9 @@ async def main():
         for sym, api in api_pos.items():
             if float(api.get("positionAmt", 0)) != 0:
                 POS[sym] = dict(
-                    side="LONG" if float(api["positionAmt"]) > 0 else "SHORT",
-                    qty=abs(float(api["positionAmt"])),
-                    entry=float(api["entryPrice"]),
+                    side="LONG" if float(api.get("positionAmt", 0)) > 0 else "SHORT",
+                    qty=abs(float(api.get("positionAmt", 0))),
+                    entry=float(api.get("entryPrice", 0)),
                     sl_orig=float(api.get("stopLoss", 0)),
                     tp=float(api.get("takeProfit", 0)),
                     ts_open=time.time(),
