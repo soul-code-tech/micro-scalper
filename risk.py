@@ -53,17 +53,17 @@ def calc(entry: float, atr: float, side: str, equity: float, sym: str,
     
     # 4. размер позиции
     kelly_coin    = kelly_size(win_rate, avg_rr, equity, entry)
-    sl_dist       = max(atr * atr_mult, entry * 0.001)
+    sl_dist       = max(atr * atr_mult, entry * 0.1)
     max_risk_coin = risk_amt / sl_dist
     size          = min(kelly_coin, max_risk_coin)
 
     # --- максимальный номинал под текущий депозит ---
-    max_nom   = equity * CONFIG.LEVERAGE * 0.9   # 90 % от доступной маржи
+    max_nom   = equity * CONFIG.LEVERAGE * 0.2   # 90 % от доступной маржи
     max_coins = max_nom / entry
     size      = min(size, max_coins)
 
     # 5. шаг лота
-    lot_step = getattr(CONFIG, "LOT_STEP", 0.001)
+    lot_step = getattr(CONFIG, "LOT_STEP", 0.01)
     size     = round(size / lot_step) * lot_step
     size     = max(size, lot_step)
     # 6. частичный тейк
