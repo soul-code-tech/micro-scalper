@@ -103,77 +103,73 @@ def _get_precision(symbol: str) -> Tuple[int, int]:
 
 
 # --------------------  АСИНХРОННЫЙ ВХОД  --------------------
-async def limit_entry(ex: BingXAsync,
-                      symbol: str,
-                      side: str,  # "BUY" для LONG, "SELL" для SHORT
-                      qty_coin: float,
-                      entry_px: float,
-                      sl_price: float,
-                      tp_price: float,
-                      equity: float) -> Optional[Tuple[str, float, float]]:
+async def limit_entry(
+    ex: BingXAsync,
+    symbol: str,
+    side: str,  # "BUY" для LONG, "SELL" для SHORT
+    qty_coin: float,
+    entry_px: float,
+    sl_price: float,
+    tp_price: float,
+    equity: float,
+) -> Optional[Tuple[str, float, float]]:
+
     price_prec, lot_prec = _get_precision(symbol)
-    if qty_coin * entry_px > equity * CONFIG.LEVERAGE:
-        log.error(f"❌ {symbol} — номинал (${qty_coin * entry_px:.2f}) превышает маржу! Отмена.")
+
+    # 1. Маржинальная безопасность
+    free_margin = await ex.get_free_margin()
+    required_margin = (qty_coin * entry_px) / CONFIG.LEVERAGE * 1.1
+    if required_margin > free_margin:
+        log.info("♻️ %s – свободной маржи %.2f < %.2f", symbol, free_margin, required_margin)
         return None
+
+    # 2. Пустой стакан
     book = await ex.order_book(symbol, limit=5)
     if not book or not book.get("bids") or not book.get("asks"):
         log.warning("⚠️ %s – пустой стакан", symbol)
         return None
-        
-    # ---------- СВОБОДНАЯ МАРЖА ----------
-    free_margin = await ex.get_free_margin()
-    required_margin = (qty_coin * entry_px) / CONFIG.LEVERAGE * 1.1  # 10 % запас
-    if required_margin > free_margin:
-        log.info("♻️ %s – не хватает свободной маржи: нужно %.2f, есть %.2f",
-                 symbol, required_margin, free_margin)
-        return None
-    # Рассчитываем цену лимитного входа
+
+    # 3. Цена лимитного входа
     tick = 10 ** -price_prec
-    if side == "BUY":  # LONG - покупаем чуть ниже текущей цены
+    if side == "BUY":
         entry_px = float(book["bids"][0][0]) - tick * 3
-    else:  # SHORT - продаем чуть выше текущей цены
+    else:
         entry_px = float(book["asks"][0][0]) + tick * 3
 
-    # Проверка минимального номинала — но не выше разумного
-    min_nom = 2.5
+    # 4. Минимальный номинал (но не выше разумного)
+    min_nom = 0.01  # биржевой лимит
     current_nom = qty_coin * entry_px
     if current_nom < min_nom:
-        # Но не увеличиваем, если это нарушит лимиты или маржу
         proposed_qty = min_nom / entry_px
-        # Если даже min_nom слишком большой — пропускаем
-        if proposed_qty > qty_coin * 3:  # не более чем в 3 раза увеличиваем
-            log.warning(f"⏭️ {symbol} — min_nom требует слишком большой объём. Пропуск.")
+        if proposed_qty > qty_coin * 3:  # не раздуваем более чем в 3 раза
+            log.warning("⏭️ %s – min_nom требует слишком большой объём. Пропуск.", symbol)
             return None
         qty_coin = proposed_qty
 
-    # Округление количества
+    # 5. Округление до мин-лота и шага
     min_qty, step_size = get_min_lot(symbol)
     qty_coin = max(qty_coin, min_qty)
     qty_coin = math.ceil(qty_coin / step_size) * step_size
-    # ---------- ПОСЛЕ ОКРУГЛЕНИЯ ----------
+
+    # 6. Финальная проверка nominal
     nominal = qty_coin * entry_px
     if nominal < 0.01:
         log.info("♻️ %s – nominal %.4f < 0.01 USDT после округления, пропуск", symbol, nominal)
-        return None                      
+        return None
 
-    # ⚠️ УДАЛЕНО: проверка max_nom — она уже сделана в main.py
-
-    log.info("♻️ %s equity=%.2f$  qty=%.6f  nominal=%.2f$",
-             symbol, equity, qty_coin, qty_coin * entry_px)
-
+    # 7. Форматирование строк
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
     qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
 
-    # Правильный лимитный ордер для входа
+    # 8. Отправка лимит-ордера
     position_side = "LONG" if side == "BUY" else "SHORT"
-
     params = {
-        "symbol":       symbol,
-        "side":         side,
-        "type":         "LIMIT",
-        "timeInForce":  "PostOnly",
-        "price":        entry_px_str,
-        "quantity":     qty_coin_str,
+        "symbol": symbol,
+        "side": side,
+        "type": "LIMIT",
+        "timeInForce": "PostOnly",
+        "price": entry_px_str,
+        "quantity": qty_coin_str,
         "positionSide": position_side,
     }
 
@@ -182,13 +178,13 @@ async def limit_entry(ex: BingXAsync,
         log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
         return None
 
+    # 9. Безопасное извлечение orderId
     order_data = resp.get("data", {}).get("order", {})
     order_id = order_data.get("orderId") or order_data.get("orderID")
     if not order_id:
         log.warning("⚠️ %s – нет orderId в ответе: %s", symbol, resp)
         return None
 
-    order_id = order_data["id"]
     log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
              symbol, side, entry_px_str, qty_coin_str, order_id)
     return order_id, float(entry_px_str), float(qty_coin)
