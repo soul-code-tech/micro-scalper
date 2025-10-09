@@ -84,16 +84,16 @@ async def manage(ex: BingXAsync, sym: str, api_pos: dict):
         tp1_px = pos["entry"] + risk_dist * CONFIG.TP1_MULT if side == "LONG" else pos["entry"] - risk_dist * CONFIG.TP1_MULT
 
         if (side == "LONG" and mark >= tp1_px) or (side == "SHORT" and mark <= tp1_px):
-            qty60 = pos["qty"] * 0.6
-            await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", qty60)
+            qty60 = pos["qty"] * 0.05
+            await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", qty5)
             pos["tp1_done"] = True
-            log.info("⚡ %s TP1 60%% at %s", sym, human_float(mark))
+            log.info("⚡ %s TP1 5%% at %s", sym, human_float(mark))
 
     # --- BREAKEVEN: когда цена прошла +1R ---
     if not pos.get("breakeven_done"):
         be_px = pos["entry"] + risk_dist if side == "LONG" else pos["entry"] - risk_dist
         if (side == "LONG" and mark >= be_px) or (side == "SHORT" and mark <= be_px):
-            part_qty = pos["qty"] * 0.2
+            part_qty = pos["qty"] * 0.02
             await ex.close_position(sym, "SELL" if side == "LONG" else "BUY", part_qty)
             pos["breakeven_done"] = True
             pos["sl"] = pos["entry"]
@@ -220,7 +220,7 @@ async def think(ex: BingXAsync, sym: str, equity: float):
         min_nom = min(CONFIG.MIN_NOTIONAL_FALLBACK * 0.5, min_nom)
 
     # ✅ Максимум: 90% × leverage
-    max_nominal = equity * 0.9 * CONFIG.LEVERAGE
+    max_nominal = equity * 0.1 * CONFIG.LEVERAGE
     if min_nom > max_nominal:
         log.info("⏭️  %s min_nom (%.2f) > max_nom (%.2f) — пропуск", sym, min_nom, max_nominal)
         return
