@@ -9,7 +9,7 @@ from sklearn.metrics import accuracy_score
 import joblib
 
 N_LAG = 5
-MODEL_DIR = "weights"
+MODEL_DIR = os.path.join(os.path.dirname(__file__), "weights")
 
 # 🚀 КЭШ МОДЕЛЕЙ — ДОБАВЛЯЕМ!
 _MODEL_CACHE = {}
