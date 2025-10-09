@@ -101,7 +101,7 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
     feat = micro_structure(df)
 
     # ---------------- DEBUG -----------------
-    print(f"[DBG] {sym} {tf}  atr_pc={atr_pc:.5f}  thr={thr:.3f}  model={clf is not None}")
+    print(f"[DBG] {sym} prob={prob:.3f} thr={thr:.3f} long={long_raw} short={short_raw}")
     # --------------------------------------
 
         # Fallback — RSI правило
