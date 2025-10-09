@@ -170,14 +170,15 @@ async def limit_entry(ex: BingXAsync,
         log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
         return None
     # ✅ БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ order.id
-    order_data = resp.get("data", {}).get("order", {})
+       order_data = resp.get("data", {}).get("order", {})
     if not order_data or "id" not in order_data:
         log.warning("⚠️ %s – в ответе нет order.id: %s", symbol, resp)
-        return None    
+        return None
+
     order_id = order_data["id"]
-        log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
+    log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
              symbol, side, entry_px_str, qty_coin_str, order_id)
-        return order_id, float(entry_px_str), float(qty_coin)
+    return order_id, float(entry_px_str), float(qty_coin)
 # --------------------  ОЖИДАНИЕ / ОТМЕНА  --------------------
 async def await_fill_or_cancel(ex: BingXAsync,
                                order_id: str,
