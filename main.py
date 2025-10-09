@@ -334,6 +334,10 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
     if symbol in POS:
         log.info(f"⏭️ {symbol} already in POS – skip")
         return
+    
+    if side is None:
+        log.info(f"⏭️ {symbol} – no side, skip order")
+        return   
 
     # ---------- РАСЧЁТ РАЗМЕРА ----------
     sizing = calc(px, atr_pc * px, side, equity, symbol)
@@ -360,7 +364,7 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
     theoretical_max = equity * CONFIG.LEVERAGE
     available_nominal = theoretical_max - used_nominal
 
-    if available_nominal <= 0:
+    if available_nominal < 0:
         log.info(f"⏭️ {symbol} — нет свободной маржи (used: ${used_nominal:.2f})")
         return
 
@@ -369,7 +373,7 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
     max_coins = safe_nominal / px
     final_size = min(sizing.size, max_coins)
 
-    if final_size <= 0:
+    if final_size < 0:
         log.info(f"⏭️ {symbol} — недостаточно маржи даже для минимального входа")
         return
 
