@@ -213,11 +213,11 @@ async def manage_position(ex: BingXAsync, symbol: str, api_pos: dict):
         POS.pop(symbol, None)
     # ---------- быстрый выход +12 % ----------
     if not pos.get("tp_fast_done"):
-        tp_fast = pos["entry"] * (1.12 if side == "LONG" else 0.88)
+        tp_fast = pos["entry"] * (1.06 if side == "LONG" else 0.88)
         if (side == "LONG" and mark >= tp_fast) or (side == "SHORT" and mark <= tp_fast):
             await ex.close_position(symbol, "SELL" if side == "LONG" else "BUY", pos["qty"])
             POS.pop(symbol, None)
-            log.info("🎯 %s +12%% closed at %.5f", symbol, mark)
+            log.info("🎯 %s +6%% closed at %.5f", symbol, mark)
             return  
 
 async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
