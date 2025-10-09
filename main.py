@@ -154,6 +154,9 @@ async def main():
                 if CYCLE % 15 == 0:
                     dd = (PEAK_BALANCE - equity) / PEAK_BALANCE * 100 if PEAK_BALANCE else 0.0
                     log.info(f"📊 EQ:${equity:.2f}  Peak:${PEAK_BALANCE:.2f}  DD:{dd:.2f}%  POS:{len(POS)}  ORD:{len(OPEN_ORDERS)}")
+                # ---------- Health каждые 30 сек ----------
+                if CYCLE % 30 == 0:
+                    await check_total_pnl(ex, equity)
                 
                 # Пауза между циклами
                 await asyncio.sleep(10)
