@@ -169,7 +169,15 @@ async def manage_position(ex: BingXAsync, symbol: str, api_pos: dict):
         return
     
     mark = float(api_pos["markPrice"])
-    side = pos["side"]                      # ← добавить
+    side = pos["side"] 
+    # ---------- выход по +5 % к цене входа ----------
+    gain_pc = (mark - pos["entry"]) / pos["entry"] * 100
+    if gain_pc >= 5.0:  # пиковый профит ≥ 5 %
+        log.info("🎯 %s +5%% reached (%.2f%%) – closing entire position", symbol, gain_pc)
+        await ex.close_position(symbol, "SELL" if side == "LONG" else "BUY", pos["qty"])
+        POS.pop(symbol, None)
+        await ex.cancel_all(symbol)
+        return  # выходим из manage_position сразу# ← добавить
     risk_dist = abs(pos["entry"] - pos["sl_orig"])  # ← добавить
     # ---------- ЖЁСТКИЙ 10 % стоп ----------
     if not pos.get("sl_10_done"):
