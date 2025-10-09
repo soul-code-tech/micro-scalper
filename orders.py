@@ -14,6 +14,7 @@ logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
 
 ENDPOINT = "https://open-api.bingx.com"
+ALTERNATE_ENDPOINT = "https://open-api.bingx.io"  # ← альтернатива
 API_KEY = os.getenv("BINGX_API_KEY")
 SECRET = os.getenv("BINGX_SECRET_KEY")
 REQ_TIMEOUT = 5
