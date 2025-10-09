@@ -292,7 +292,7 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
     atr_pc = score["atr_pc"]
     px = float(last[4])
     vol_usd = float(last[5]) * px
-    min_vol_dyn = equity * 0.05
+    min_vol_dyn = equity * 1.0
     side = ("LONG" if score["long"] > score["short"] else
             "SHORT" if score["short"] > score["long"] else None)
 
