@@ -137,7 +137,7 @@ async def limit_entry(
         entry_px = float(book["asks"][0][0]) + tick * 3
 
     # 4. Минимальный номинал (но не выше разумного)
-    min_nom = 0.01  # биржевой лимит
+    min_nom = 0.1  # биржевой лимит
     current_nom = qty_coin * entry_px
     if current_nom < min_nom:
         proposed_qty = min_nom / entry_px
