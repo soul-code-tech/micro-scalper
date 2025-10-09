@@ -111,17 +111,15 @@ async def limit_entry(ex: BingXAsync,
     qty_coin = max(qty_coin, min_qty)
     qty_coin = math.ceil(qty_coin / step_size) * step_size
 
-    # Финальная проверка
-    if qty_coin * entry_px > max_nom:
-        qty_coin = math.floor(max_nom / entry_px / step_size) * step_size
+    # ⚠️ УДАЛЕНО: проверка max_nom — она уже сделана в main.py
 
-    log.info("♻️ %s equity=%.2f$  max_nom=%.2f$  qty=%.6f  nominal=%.2f$",
-             symbol, equity, max_nom, qty_coin, qty_coin * entry_px)
+    log.info("♻️ %s equity=%.2f$  qty=%.6f  nominal=%.2f$",
+             symbol, equity, qty_coin, qty_coin * entry_px)
 
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
     qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
 
-       # Правильный лимитный ордер для входа
+    # Правильный лимитный ордер для входа
     position_side = "LONG" if side == "BUY" else "SHORT"
 
     params = {
@@ -143,7 +141,6 @@ async def limit_entry(ex: BingXAsync,
     log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
              symbol, side, entry_px_str, qty_coin_str, order_id)
     return order_id, float(entry_px_str), float(qty_coin)
-
 # --------------------  ОЖИДАНИЕ / ОТМЕНА  --------------------
 async def await_fill_or_cancel(ex: BingXAsync,
                                order_id: str,
