@@ -102,8 +102,8 @@ async def limit_entry(ex: BingXAsync,
                       equity: float) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
     if qty_coin * entry_px > equity * CONFIG.LEVERAGE:
-    log.error(f"❌ {symbol} — номинал (${qty_coin * entry_px:.2f}) превышает маржу! Отмена.")
-    return None
+        log.error(f"❌ {symbol} — номинал (${qty_coin * entry_px:.2f}) превышает маржу! Отмена.")
+        return None
     book = await ex.order_book(symbol, limit=5)
     if not book or not book.get("bids") or not book.get("asks"):
         log.warning("⚠️ %s – пустой стакан", symbol)
