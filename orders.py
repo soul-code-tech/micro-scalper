@@ -102,7 +102,7 @@ async def limit_entry(ex: BingXAsync,
         entry_px = float(book["asks"][0][0]) + tick * 3
 
     # Ограничение размера позиции по доступной марже
-    max_nom = equity * CONFIG.LEVERAGE * 0.90
+    max_nom = equity * CONFIG.LEVERAGE * 0.2
     qty_coin = min(qty_coin, max_nom / entry_px)
 
     # Проверка минимального номинала
