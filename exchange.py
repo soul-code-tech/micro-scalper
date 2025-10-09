@@ -21,25 +21,20 @@ class BingXAsync:
                      
     async def get_free_margin(self) -> float:
         """Returns USDT amount available for **new** positions (cross-margin)."""
-        acc = await self._signed_request("GET", "/openApi/swap/v2/user/balance")
-        data = acc.get("data", [])
+        raw = await self._signed_request("GET", "/openApi/swap/v2/user/balance")
+        data = raw.get("data", {})
 
-        # ---------- защита от пустого ответа ----------
-        if not data:
-            log.warning("[get_free_margin] data пусто: %s", acc)
-            return 0.0
+        # ---------- новая структура ----------
+        if isinstance(data, dict) and "balance" in data:
+            return float(data["balance"].get("availableMargin", 0))
 
-        # ---------- если data — список словарей ----------
+        # ---------- старая структура (список) ----------
         if isinstance(data, list):
             for b in data:
                 if isinstance(b, dict) and b.get("asset") == "USDT":
                     return float(b.get("availableBalance", 0))
-            log.warning("[get_free_margin] USDT не найдено в списке: %s", data)
+            log.warning("[get_free_margin] USDT не найдено в списке")
             return 0.0
-
-        # ---------- если data — dict (один актив) ----------
-        if isinstance(data, dict) and data.get("asset") == "USDT":
-            return float(data.get("availableBalance", 0))
 
         log.error("[get_free_margin] Неизвестная структура data: %s", data)
         return 0.0
