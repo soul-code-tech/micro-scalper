@@ -34,7 +34,7 @@ logging.basicConfig(
     ]
 )
 log = logging.getLogger("scalper")
-
+log.info(f"Загружено данных по лотам для {len(_MIN_LOT_CACHE)} символов")
 def calculate_used_nominal() -> float:
     """Считает общий номинал всех открытых позиций."""
     total = 0.0
