@@ -12,12 +12,36 @@ from settings import CONFIG
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("aiohttp").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(logging.WARNING)
 
 ENDPOINT = "https://open-api.bingx.com"
 ALTERNATE_ENDPOINT = "https://open-api.bingx.io"  # ← альтернатива
 API_KEY = os.getenv("BINGX_API_KEY")
 SECRET = os.getenv("BINGX_SECRET_KEY")
 REQ_TIMEOUT = 5
+
+async def _private_request(method: str, endpoint: str, params: dict, max_retries=3) -> dict:
+    for attempt in range(max_retries):
+        try:
+            url = ENDPOINT + endpoint
+            if attempt > 0:
+                url = ALTERNATE_ENDPOINT + endpoint  # попробовать запасной домен
+            
+            query = self._sign_query(params)
+            full_url = f"{url}?{query}"
+            
+            async with self.sess.request(method, full_url, headers={"X-BX-APIKEY": self.key}) as r:
+                js = await r.json()
+                if js.get("code") != 0:
+                    raise RuntimeError(js["msg"])
+                return js
+                
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            await asyncio.sleep(2 ** attempt)  # экспоненциальная задержка
 
 async def load_min_lot_cache(ex: BingXAsync) -> None:
     """Один раз при старте качаем мин-лоты всех контрактов."""
