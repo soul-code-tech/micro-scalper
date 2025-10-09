@@ -108,7 +108,7 @@ async def main():
                 # Получаем текущий баланс
                 free_margin = await ex.get_free_margin() 
                 equity        = free_margin          # работаем только на свободные деньги 
-                log.info("💰 Free margin: $%.2f", free_margin)()
+                log.info("💰 Free margin: $%.2f", free_margin)
                 
                 
                 # Обновляем пиковый баланс
