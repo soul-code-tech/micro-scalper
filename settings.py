@@ -6,7 +6,7 @@ import os
 class ScalperConfig:
     # --- торговые символы и тайм-фреймы ---
     SYMBOLS: Tuple[str, ...] = ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "SUI-USDT")
-    TIME_FRAMES: Tuple[str, ...] = ("15m",)
+    TIME_FRAMES: Tuple[str, ...] = ("5m",)
 
     # --- риск и деньги ---
     MAX_POS: int = 3                    # макс одновременных позиций
