@@ -9,7 +9,7 @@ class ScalperConfig:
     TIME_FRAMES: Tuple[str, ...] = ("5m",)
 
     # --- риск и деньги ---
-    MAX_POS: int = 3                    # макс одновременных позиций
+    MAX_POS: int = 10                    # макс одновременных позиций
     RISK_PER_TRADE: float = 0.5        # 5 % от баланса на сделку
     MAX_BALANCE_PC: float = 0.5        # макс % баланса в одной сделке (новое)
     TAKE_PROFIT_PCT: float = 0.02       # закрыть всё при +2 % к старту (новое)
