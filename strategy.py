@@ -99,6 +99,23 @@ def micro_score(klines: list, sym: str, tf: str) -> dict:
 
     scaler, clf, thr = load_model(sym, tf)
     feat = micro_structure(df)
+     # ---------- защита от падения ----------
+    if scaler is None or clf is None:
+        rsi_now = rsi(df["c"], 14)
+        if rsi_now < 45:
+            long_raw, short_raw = 1.0, 0.0
+        elif rsi_now > 65:
+            long_raw, short_raw = 0.0, 1.0
+        else:
+            long_raw, short_raw = 0.0, 0.0
+        return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
+
+    # ---------- теперь safe ----------
+    X = scaler.transform(feat.values.reshape(1, -1))
+    prob = float(clf.predict_proba(X)[0, 1])
+    long_raw = float(prob > thr)
+    short_raw = float(prob < 1 - thr)
+    return {"long": long_raw, "short": short_raw, "atr_pc": atr_pc}
 
     # ---------------- DEBUG -----------------
     print(f"[DBG] {sym} prob={prob:.3f} thr={thr:.3f} long={long_raw} short={short_raw}")
