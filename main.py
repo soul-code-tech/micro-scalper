@@ -239,7 +239,7 @@ async def manage_position(ex: BingXAsync, symbol: str, api_pos: dict):
     
     # STOP-OUT
     if (side == "LONG" and mark <= pos["sl"]) or (side == "SHORT" and mark >= pos["sl"]):
-        fee = pos["qty"] * mark * 0.001
+        fee = pos["qty"] * mark * 0.1
         pnl = (mark - pos["entry"]) * pos["qty"] * (1 if side == "LONG" else -1) - fee
         log.info(f"🛑 {symbol} stopped at {mark:.5f}  qty={pos['qty']:.3f}  fee={fee:.4f}$  pnl={pnl:.4f}$")
         await ex.close_position(symbol, "SELL" if side == "LONG" else "BUY", pos["qty"])
@@ -399,7 +399,7 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
     )
 
     # ---------- РИСК НЕ БОЛЕЕ 20% БАЛАНСА ----------
-    max_risk_usd = equity * 0.20
+    max_risk_usd = equity * 0.9
     if sizing.usd_risk > max_risk_usd:
         k = max_risk_usd / sizing.usd_risk
         new_size = sizing.size * k
@@ -411,7 +411,7 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
             partial_qty=new_size * CONFIG.PARTIAL_TP,
             atr=sizing.atr
         )
-        log.info("⚖️ %s риск урезан до 20%% баланса", symbol)
+        log.info("⚖️ %s риск урезан до 80%% баланса", symbol)
 
     log.info(f"FLOW-OK {symbol}  px={px:.5f} sizing={sizing.size:.6f}")
 
@@ -481,11 +481,11 @@ async def check_total_pnl(ex: BingXAsync, equity: float):
                 continue
             pos = POS[sym]
             mark = float(api_pos[sym]["markPrice"])
-            fee = pos["qty"] * mark * 0.001
+            fee = pos["qty"] * mark * 0.1
             pnl = (mark - pos["entry"]) * pos["qty"] * (1 if pos["side"] == "LONG" else -1) - fee
             total_pnl += pnl
         
-        if total_pnl > equity * 0.02:
+        if total_pnl > equity * 0.05:
             log.info(f"💰 TOTAL PnL = {total_pnl:.2f}$ > 2% – закрываю все позиции")
             for s in list(POS.keys()):
                 side = "SELL" if POS[s]["side"] == "LONG" else "BUY"
