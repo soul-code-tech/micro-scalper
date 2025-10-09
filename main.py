@@ -95,7 +95,9 @@ async def main():
                     except Exception as e:
                         log.error(f"❌ Ошибка при обработке {symbol}: {str(e)}")
                         log.exception(e)
-                    
+                            if side is None:
+                                log.info(f"⏭️ {symbol} – нет сигнала (side=None)")
+                                return
                     # Небольшая задержка между символами
                     await asyncio.sleep(15)
                 
