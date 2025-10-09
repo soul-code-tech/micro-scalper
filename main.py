@@ -138,9 +138,12 @@ async def main():
                             # Ищем новые возможности для входа
                             await open_new_position(ex, symbol, equity)
                     except Exception as e:
-                        log.error(f"❌ Ошибка при обработке {symbol}: {str(e)}")
-                        log.exception(e)
-                            
+                        # молчаливый пропуск – не ломаем цикл
+                        if "101204" in str(e) or "101485" in str(e) or "insufficient" in str(e).lower():
+                            log.info("⏭️ %s – пропуск (маржа/лот): %s", symbol, e)
+                        else:
+                            log.warning("⚠️ %s – пропуск: %s", symbol, e)
+                                                   
                     # Небольшая задержка между символами
                     await asyncio.sleep(15)
                 
@@ -447,6 +450,9 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
             tp_fast_done=False,
         )
         log.info(f"📨 {symbol} {side} {qty_coin:.6f} @ {avg_px:.5f} SL={sizing.sl_px:.5f} TP={sizing.tp_px:.5f}")
+    # ---------- ФИНАЛЬНЫЙ ПРОПУСК – если не вошли ----------
+    if symbol not in POS and symbol not in OPEN_ORDERS:
+        log.info("⏭️ %s – нет входа, идём дальше", symbol)    
 
 async def check_total_pnl(ex: BingXAsync, equity: float):
     """Проверяет общий PnL и закрывает все позиции при +2%"""
