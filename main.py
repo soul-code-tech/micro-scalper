@@ -35,6 +35,13 @@ logging.basicConfig(
 )
 log = logging.getLogger("scalper")
 
+def calculate_used_nominal() -> float:
+    """Считает общий номинал всех открытых позиций."""
+    total = 0.0
+    for pos in POS.values():
+        total += pos.get("qty", 0) * pos.get("entry", 0)
+    return total
+
 async def main():
     global PEAK_BALANCE, CYCLE, _MIN_LOT_CACHE   # ← добавьте
     
@@ -188,33 +195,29 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
                 return
         except Exception as e:
             if "101204" in str(e) or "101209" in str(e):
-                log.warning("⚠️ %s – маржа мала, пропуск", symbol)   # без traceback
+                log.warning("⚠️ %s – маржа мала, пропуск", symbol)
             else:
                 log.exception(e)
-        except Exception as e:
-            log.error(f"❌ {symbol}: {e}")
-    # без traceback если не критично
-    
+        return  # ← исправлено: убрал лишний except
+
     # Получаем лучший таймфрейм
     tf = await best_timeframe(ex, symbol)
     klines = await ex.klines(symbol, tf, 150)
     if not klines:
         log.info(f"⏭️ {symbol} {tf} – klines ПУСТО")
         return
-    
-    # Конвертируем словари в списки
+
     if isinstance(klines[0], dict):
         klines = [[d["time"], d["open"], d["high"], d["low"], d["close"], d["volume"]] for d in klines]
-    
+
     last = klines[-1]
     log.info(f"RAW {symbol} {tf}  len={len(klines)}  last: {last}")
     log.info(f"THINK-CONTINUE {symbol} – расчёт начат")
-    
+
     if float(last[2]) == float(last[3]):
         log.info(f"FLAT {symbol} {tf}  h=l={last[2]}")
         return
-    
-    # Вызываем micro_score в отдельном потоке
+
     log.info(f"⏳ CALLING micro_score() for {symbol}")
     score = await asyncio.get_event_loop().run_in_executor(
         concurrent.futures.ThreadPoolExecutor(max_workers=3),
@@ -222,68 +225,102 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
         klines, symbol, tf
     )
     log.info(f"✅ micro_score() DONE for {symbol}")
-    
+
     atr_pc = score["atr_pc"]
     px = float(last[4])
     vol_usd = float(last[5]) * px
     min_vol_dyn = equity * 0.05
     side = ("LONG" if score["long"] > score["short"] else
             "SHORT" if score["short"] > score["long"] else None)
-    
+
     log.info(f"🧠 {symbol} tf={tf} atr={atr_pc:.4f} vol={vol_usd:.0f}$ side={side} long={score['long']:.2f} short={score['short']:.2f}")
-    
+
     # Фильтры
     utc_hour = datetime.now(timezone.utc).hour
     if not (CONFIG.TRADE_HOURS[0] <= utc_hour < CONFIG.TRADE_HOURS[1]):
         log.info(f"⏭️  {symbol} – вне торгового окна")
         return
-    
+
     if atr_pc < CONFIG.MIN_ATR_PC:
         log.info(f"⏭️  {symbol} low atr")
         return
-    
+
     if vol_usd < min_vol_dyn:
         log.info(f"⏭️ {symbol} low vol (dyn {min_vol_dyn:.0f}$)")
         return
-    
+
     if len(POS) >= CONFIG.MAX_POS:
         log.info(f"⏭️  {symbol} max pos reached")
         return
-    
+
     if symbol in POS:
         log.info(f"⏭️ {symbol} already in POS – skip")
         return
-    
+
     # ---------- РАСЧЁТ РАЗМЕРА ----------
     sizing = calc(px, atr_pc * px, side, equity, symbol)
     if sizing.size <= 0:
         log.info(f"⏭️  {symbol} sizing zero")
         return
 
-    # ---------- ЖЁСТКИЙ ПОТОЛОК ПО ДЕПОЗИТУ ----------
-    max_nom   = equity * CONFIG.LEVERAGE * 0.2          # 90 % маржи
-    max_coins = max_nom / px
-    size      = min(sizing.size, max_coins)             # режем если > 18 $
-    log.debug(f"{symbol} max_coins={max_coins:.4f}  raw_size={sizing.size:.4f}  final_size={size:.4f}")
+    # ---------- ОГРАНИЧЕНИЕ: не более MAX_BALANCE_PC от equity ----------
+    max_nom_per_trade = equity * CONFIG.MAX_BALANCE_PC
+    if sizing.size * px > max_nom_per_trade:
+        new_size = max_nom_per_trade / px
+        sizing = Sizing(
+            size=new_size,
+            usd_risk=sizing.usd_risk * (new_size / sizing.size),
+            sl_px=sizing.sl_px,
+            tp_px=sizing.tp_px,
+            partial_qty=new_size * CONFIG.PARTIAL_TP,
+            atr=sizing.atr
+        )
+        log.info(f"📉 {symbol} урезан до {CONFIG.MAX_BALANCE_PC*100:.0f}% баланса: nominal=${new_size * px:.2f}")
+
+    # ---------- УЧЁТ УЖЕ ЗАНЯТОЙ МАРЖИ ----------
+    used_nominal = calculate_used_nominal()
+    theoretical_max = equity * CONFIG.LEVERAGE
+    available_nominal = theoretical_max - used_nominal
+
+    if available_nominal <= 0:
+        log.info(f"⏭️ {symbol} — нет свободной маржи (used: ${used_nominal:.2f})")
+        return
+
+    # Безопасный лимит: 80% от свободной маржи
+    safe_nominal = available_nominal * 0.8
+    max_coins = safe_nominal / px
+    final_size = min(sizing.size, max_coins)
+
+    if final_size <= 0:
+        log.info(f"⏭️ {symbol} — недостаточно маржи даже для минимального входа")
+        return
 
     # ---------- МИНИМАЛЬНЫЙ НОМИНАЛ ----------
-    min_nom = CONFIG.MIN_NOTIONAL_FALLBACK * 0.5 if symbol in ("DOGE-USDT", "LTC-USDT", "SHIB-USDT", "XRP-USDT", "BNB-USDT", "SUI-USDT") else CONFIG.MIN_NOTIONAL_FALLBACK
-    min_nom = min(min_nom, max_nom)                     # не выше доступной маржи
+    min_nom = CONFIG.MIN_NOTIONAL_FALLBACK * 0.5 if symbol in (
+        "DOGE-USDT", "LTC-USDT", "SHIB-USDT", "XRP-USDT", "BNB-USDT", "SUI-USDT"
+    ) else CONFIG.MIN_NOTIONAL_FALLBACK
+    min_nom = min(min_nom, safe_nominal)
 
-    if size * px < min_nom:                             # подтягиваем до минимума
-        size = min_nom / px
-        log.info(f"⚠️  {symbol} nominal {size * px:.2f} < {min_nom:.2f} USD — увеличиваю до {size:.6f}")
+    if final_size * px < min_nom:
+        final_size = min_nom / px
+        # Но не больше, чем позволяет свободная маржа
+        final_size = min(final_size, max_coins)
+        if final_size * px < min_nom:
+            log.info(f"⏭️ {symbol} — не хватает маржи даже на мин. номинал ${min_nom:.2f}")
+            return
+        log.info(f"⚠️ {symbol} увеличен до мин. номинала: {final_size * px:.2f}$")
 
-    # ---------- ПЕРЕСОБИРАЕМ Sizing с финальным size ----------
+    # ---------- ФИНАЛЬНЫЙ SIZING ----------
     sizing = Sizing(
-        size=size,
-        usd_risk=sizing.usd_risk,
+        size=final_size,
+        usd_risk=sizing.usd_risk * (final_size / sizing.size) if sizing.size > 0 else 0,
         sl_px=sizing.sl_px,
         tp_px=sizing.tp_px,
-        partial_qty=size * CONFIG.PARTIAL_TP,
+        partial_qty=final_size * CONFIG.PARTIAL_TP,
         atr=sizing.atr
     )
-    # ---------- риск НЕ больше 20 % баланса ----------
+
+    # ---------- РИСК НЕ БОЛЕЕ 20% БАЛАНСА ----------
     max_risk_usd = equity * 0.20
     if sizing.usd_risk > max_risk_usd:
         k = max_risk_usd / sizing.usd_risk
@@ -296,42 +333,45 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
             partial_qty=new_size * CONFIG.PARTIAL_TP,
             atr=sizing.atr
         )
-    log.info("⚖️ %s риск урезан до 20%% баланса", symbol)
-    
-    # FLOW-OK — все условия пройдены
+        log.info("⚖️ %s риск урезан до 20%% баланса", symbol)
+
     log.info(f"FLOW-OK {symbol}  px={px:.5f} sizing={sizing.size:.6f}")
-    
+
     if symbol not in POS and symbol not in OPEN_ORDERS:
         try:
             await ex.set_leverage(symbol, CONFIG.LEVERAGE, "LONG" if side == "LONG" else "SHORT")
         except RuntimeError as e:
             if "leverage already set" not in str(e):
-                log.warning(f"⚠️  set_leverage {symbol}: {e}")
-        
-        # Лимитный вход + OCO SL/TP
-        order_data = await limit_entry(ex, symbol,
-                                       "BUY" if side == "LONG" else "SELL",
-                                       sizing.size,
-                                       px,
-                                       sizing.sl_px,
-                                       sizing.tp_px,
-                                       equity)          # ← добавить
+                log.warning(f"⚠️ set_leverage {symbol}: {e}")
+
+        order_data = await limit_entry(
+            ex, symbol,
+            "BUY" if side == "LONG" else "SELL",
+            sizing.size,
+            px,
+            sizing.sl_px,
+            sizing.tp_px,
+            equity
+        )
         if order_data is None:
             log.info(f"⏭ {symbol} – пропуск (limit_entry вернул None)")
             return
-        
+
         order_id, entry_px, qty_coin = order_data
         OPEN_ORDERS[symbol] = order_id
-        
-        # Ожидаем исполнения
+
         avg_px = await await_fill_or_cancel(ex, order_id, symbol, max_sec=8)
         if avg_px is None:
             return
-        
-        # Ставим SL и TP
-        sl_tp_ids = await limit_sl_tp(ex, symbol, "BUY" if side == "LONG" else "SELL", qty_coin, sizing.sl_px, sizing.tp_px)
-        
-        # Сохраняем позицию в память
+
+        sl_tp_ids = await limit_sl_tp(
+            ex, symbol,
+            "BUY" if side == "LONG" else "SELL",
+            qty_coin,
+            sizing.sl_px,
+            sizing.tp_px
+        )
+
         POS[symbol] = dict(
             side=side,
             qty=qty_coin,
@@ -343,8 +383,8 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
             atr=sizing.atr,
             tp1_done=False,
             breakeven_done=False,
-            sl_10_done=False,        # ← добавить
-            tp_fast_done=False,      # ← если ещё нет
+            sl_10_done=False,
+            tp_fast_done=False,
         )
         log.info(f"📨 {symbol} {side} {qty_coin:.6f} @ {avg_px:.5f} SL={sizing.sl_px:.5f} TP={sizing.tp_px:.5f}")
 
