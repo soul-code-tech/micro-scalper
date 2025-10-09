@@ -60,7 +60,20 @@ async def load_min_lot_cache(ex: BingXAsync) -> None:
 
 def get_min_lot(symbol: str) -> tuple[float, float]:
     data = _MIN_LOT_CACHE.get(symbol, {})
-    return data.get("minQty", 156623.0), data.get("stepSize", 1.0)
+    min_qty = data.get("minQty")
+    step_size = data.get("stepSize")
+    
+    if min_qty is None or step_size is None:
+        log.error(f"⚠️ minQty/stepSize не найдены для {symbol}! Использую безопасные дефолты.")
+        # Безопасные дефолты для разных пар:
+        if "SHIB" in symbol:
+            return 100000.0, 1000.0
+        elif "DOGE" in symbol:
+            return 100.0, 1.0
+        else:
+            return 1.0, 0.001  # для LTC, SUI, BNB и т.д.
+    
+    return float(min_qty), float(step_size)
 
 
 def _get_precision(symbol: str) -> Tuple[int, int]:
@@ -88,7 +101,9 @@ async def limit_entry(ex: BingXAsync,
                       tp_price: float,
                       equity: float) -> Optional[Tuple[str, float, float]]:
     price_prec, lot_prec = _get_precision(symbol)
-
+    if qty_coin * entry_px > equity * CONFIG.LEVERAGE:
+    log.error(f"❌ {symbol} — номинал (${qty_coin * entry_px:.2f}) превышает маржу! Отмена.")
+    return None
     book = await ex.order_book(symbol, limit=5)
     if not book or not book.get("bids") or not book.get("asks"):
         log.warning("⚠️ %s – пустой стакан", symbol)
@@ -101,10 +116,17 @@ async def limit_entry(ex: BingXAsync,
     else:  # SHORT - продаем чуть выше текущей цены
         entry_px = float(book["asks"][0][0]) + tick * 3
 
-    # Проверка минимального номинала
+    # Проверка минимального номинала — но не выше разумного
     min_nom = 2.5
-    if qty_coin * entry_px < min_nom:
-        qty_coin = min_nom / entry_px
+    current_nom = qty_coin * entry_px
+    if current_nom < min_nom:
+        # Но не увеличиваем, если это нарушит лимиты или маржу
+        proposed_qty = min_nom / entry_px
+        # Если даже min_nom слишком большой — пропускаем
+        if proposed_qty > qty_coin * 3:  # не более чем в 3 раза увеличиваем
+            log.warning(f"⏭️ {symbol} — min_nom требует слишком большой объём. Пропуск.")
+            return None
+        qty_coin = proposed_qty
 
     # Округление количества
     min_qty, step_size = get_min_lot(symbol)
