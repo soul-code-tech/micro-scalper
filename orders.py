@@ -128,6 +128,9 @@ async def limit_entry(ex: BingXAsync,
     # ---------- определение opposite ----------
     opposite = "SELL" if side == "BUY" else "BUY"
 
+    # ---------- определение positionSide ----------
+    position_side = "LONG" if side == "BUY" else "SHORT"
+
     # ---------- рыночный вход (убрать Post-only) ----------
     params = {
         "symbol":       symbol,
@@ -135,6 +138,7 @@ async def limit_entry(ex: BingXAsync,
         "type":         "STOP_MARKET",      # ← вместо "LIMIT"
         "stopPrice":    str(sl_price),
         "quantity":     str(qty_coin),
+        "positionSide": position_side,      # ← добавляем positionSide
     }
 
     resp = await ex._signed_request("POST", "/openApi/swap/v2/trade/order", params)
