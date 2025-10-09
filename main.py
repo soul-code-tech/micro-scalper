@@ -222,6 +222,13 @@ async def manage_position(ex: BingXAsync, symbol: str, api_pos: dict):
 
 async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
     """Ищет новые возможности для входа и открывает позицию"""
+    
+    # ---------- ПРОВЕРКА СВОБОДНОЙ МАРЖИ ----------
+    free_margin = await ex.get_free_margin()
+    if free_margin < 1.0:
+        log.info("⏭️ Свободной маржи %.2f < 1 $ – пропуск символа %s", free_margin, symbol)
+        return  # ✅ ВЫХОДИМ из функции, а не из цикла
+
     # Проверяем, есть ли уже открытый ордер по этому символу
     if OPEN_ORDERS.get(symbol):
         try:
@@ -236,7 +243,7 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
                 log.warning("⚠️ %s – маржа мала, пропуск", symbol)
             else:
                 log.exception(e)
-        return  # ← исправлено: убрал лишний except
+        return
 
     # Получаем лучший таймфрейм
     tf = await best_timeframe(ex, symbol)
