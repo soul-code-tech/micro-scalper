@@ -217,7 +217,7 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
     # Вызываем micro_score в отдельном потоке
     log.info(f"⏳ CALLING micro_score() for {symbol}")
     score = await asyncio.get_event_loop().run_in_executor(
-        concurrent.futures.ThreadPoolExecutor(max_workers=2),
+        concurrent.futures.ThreadPoolExecutor(max_workers=3),
         micro_score,
         klines, symbol, tf
     )
@@ -374,6 +374,31 @@ async def check_total_pnl(ex: BingXAsync, equity: float):
             log.info("✅ Все позиции закрыты по общему PnL")
     except Exception as e:
         log.warning(f"⚠️  Не смог рассчитать PnL: {e}")
+ 
+async def self_diagnose(ex: BingXAsync):
+    """Проверяет здоровье системы и корректирует параметры"""
+    try:
+        info = await ex._public_get("/openApi/swap/v2/server/time")
+        server_time = info["data"]["serverTime"]
+        local_time = int(time.time() * 1000)
+        time_diff = abs(server_time - local_time)
+        
+        if time_diff > 5000:
+            log.warning("⏰ Разница времени: %d мс → возможны ошибки", time_diff)
+            # Можно автоматически перезапустить
+            return False
+        
+        # Проверка контрактов
+        contracts = await ex._public_get("/openApi/swap/v2/quote/contracts")
+        symbols_online = [c["symbol"] for c in contracts["data"]]
+        for s in CONFIG.SYMBOLS:
+            if s.replace("-", "") not in symbols_online:
+                log.warning("⚠️ Символ %s не активен", s)
+        
+        return True
+    except Exception as e:
+        log.error("🔧 Самодиагностика провалилась: %s", e)
+        return False       
 
 if __name__ == "__main__":
     try:
