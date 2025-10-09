@@ -125,22 +125,24 @@ async def limit_entry(ex: BingXAsync,
     entry_px_str = f"{entry_px:.{price_prec}f}".rstrip("0").rstrip(".")
     qty_coin_str = f"{qty_coin:.{lot_prec}f}".rstrip("0").rstrip(".")
 
-    # Правильный лимитный ордер для входа
+       # Правильный лимитный ордер для входа
+    position_side = "LONG" if side == "BUY" else "SHORT"
+
     params = {
         "symbol":       symbol,
-        "side":         side,  # Не opposite! BUY для LONG, SELL для SHORT
+        "side":         side,
         "type":         "LIMIT",
         "timeInForce":  "PostOnly",
         "price":        entry_px_str,
         "quantity":     qty_coin_str,
-        "positionSide": "BOTH",  # Для перекрестной маржи обычно "BOTH"
+        "positionSide": position_side,
     }
 
     resp = await ex._signed_request("POST", "/openApi/swap/v2/trade/order", params)
     if resp.get("code") != 0:
         log.warning("⚠️ %s – биржа отвергла ордер: %s", symbol, resp)
         return None
-        
+
     order_id = resp["data"]["order"]["id"]
     log.info("💡 %s %s limit @ %s  qty=%s  orderId=%s",
              symbol, side, entry_px_str, qty_coin_str, order_id)
