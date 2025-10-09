@@ -137,7 +137,7 @@ async def limit_entry(
         entry_px = float(book["asks"][0][0]) + tick * 3
 
     # 4. Минимальный номинал (но не выше разумного)
-    min_nom = 1.1  # биржевой лимит
+    min_nom = 2  # биржевой лимит
     current_nom = qty_coin * entry_px
     if current_nom < min_nom:
         proposed_qty = min_nom / entry_px
@@ -154,7 +154,7 @@ async def limit_entry(
     # 6. Финальная проверка nominal ≥ 0.01 USDT
     nominal = qty_coin * entry_px
     if nominal < 0.01:
-        log.info("♻️ %s – nominal %.4f < 0.01 USDT после округления, пропуск", symbol, nominal)
+        log.info("♻️ %s – nominal %.5f < 0.01 USDT после округления, пропуск", symbol, nominal)
         return None
 
     # 7. Форматирование строк
