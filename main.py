@@ -261,7 +261,7 @@ async def open_new_position(ex: BingXAsync, symbol: str, equity: float):
         return
 
     # ---------- ЖЁСТКИЙ ПОТОЛОК ПО ДЕПОЗИТУ ----------
-    max_nom   = equity * CONFIG.LEVERAGE * 0.9          # 90 % маржи
+    max_nom   = equity * CONFIG.LEVERAGE * 0.2          # 90 % маржи
     max_coins = max_nom / px
     size      = min(sizing.size, max_coins)             # режем если > 18 $
     log.debug(f"{symbol} max_coins={max_coins:.4f}  raw_size={sizing.size:.4f}  final_size={size:.4f}")
