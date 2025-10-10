@@ -1,0 +1,7 @@
+version: "3.9"
+services:
+  jesse:
+    build: .
+    env_file: .env
+    ports:
+      - "10000:10000"
