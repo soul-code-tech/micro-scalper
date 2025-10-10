@@ -1,18 +1,6 @@
-arrow~=1.2.1
-click~=8.0.3
-numpy~=1.26.4
-pandas~=2.2.3
-peewee~=3.14.8
-psycopg2-binary~=2.9.9
-requests~=2.32.0
-scipy~=1.15.0
-statsmodels~=0.14.4
-websocket-client~=1.8.0
-fastapi~=0.111.1
-uvicorn~=0.29.0
-python-dotenv~=0.19.2
-PyJWT~=2.8.0
-cryptography~=42.0.5
-optuna~=4.2.0
-# ---- Rust speed-ups ----
-jesse-rust==1.0.1
+# ---------- Jesse core ----------
+jesse>=1.10.10
+# ---------- BingX connector ----------
+git+https://github.com/jesse-ai/jesse-bingx.git@main
+# ---------- мелочь ----------
+python-dotenv
