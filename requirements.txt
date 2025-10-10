@@ -1,3 +1,4 @@
 jesse @ git+https://github.com/jesse-ai/jesse.git@master
-jesse-bingx==0.1.2       # официальный BingX-коннектор
+jesse @ git+https://github.com/jesse-ai/jesse.git@master
+git+https://github.com/jesse-ai/jesse-bingx.git@main       # официальный BingX-коннектор
 python-dotenv==1.0.0
