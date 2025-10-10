@@ -1,72 +1,37 @@
 from typing import NamedTuple
 from settings import CONFIG
-import math
 
-# ------------------------------ структура ------------------------------
 class Sizing(NamedTuple):
     size: float
+    usd_risk: float
     sl_px: float
     tp_px: float
     partial_qty: float
+    atr: float
 
-# ------------------------------ Kelly ------------------------------
-def kelly_size(win_rate: float, avg_rr: float, equity: float, last_price: float) -> float:
-    """Доля капитала (0-1) по Kelly, обрезано F×0.25"""
-    if win_rate <= 0 or avg_rr <= 0:
-        return 0.0
-    p, b = win_rate, avg_rr
-    kelly = (p * b - (1 - p)) / b
-    kelly = max(0, min(kelly, CONFIG.KELLY_F))          # глобальный лимит
-    return kelly * equity / last_price
+def calc(entry: float, atr: float, side: str, equity: float, sym: str) -> Sizing:
+    risk_amt = equity * CONFIG.RISK_PER_TRADE / 100
+    sl_dist = atr * CONFIG.ATR_MULT_SL
+    sl_px = entry - sl_dist if side == "LONG" else entry + sl_dist
+    tp_px = entry + sl_dist * CONFIG.RR if side == "LONG" else entry - sl_dist * CONFIG.RR
 
-# ------------------------------ основной расчёт ------------------------------
-def calc(entry: float, atr: float, side: str, equity: float, sym: str,
-         win_rate: float = 0.55, avg_rr: float = 2.2) -> Sizing:
-    """
-    entry  – цена входа
-    atr    – абсолютный ATR (в долларах)
-    side   – "LONG" / "SHORT"
-    equity – equity в $
-    sym    – символ (BTC-USDT и т.д.) для индивидуальных настроек
-    """
-    # 1. параметры по умолчанию
-    risk_pc   = CONFIG.RISK_PER_TRADE
-    atr_mult  = CONFIG.ATR_MULT_SL
-    rr        = CONFIG.RR
-    tp_mult   = CONFIG.TP1_MULT
+    size = risk_amt / sl_dist
+    size = min(size, equity * CONFIG.MAX_BALANCE_PC / entry)
 
-    # 2. если для пары задана тонкая настройка – берём оттуда
-    if sym and sym in getattr(CONFIG, 'TUNE', {}):
-        atr_mult = CONFIG.TUNE[sym].get("ATR_MULT_SL", atr_mult)
-        rr       = CONFIG.TUNE[sym].get("RR",         rr)
-        tp_mult  = CONFIG.TUNE[sym].get("TP1_MULT",   tp_mult)
+    min_qty, step = get_min_lot(sym)
+    size = max(size, min_qty)
+    size = (size // step) * step
 
-    # 3. расстояние стопа и тейка
-    risk_amt = equity * risk_pc / 100
-    sl_dist = atr * atr_mult
-    sl_px    = entry - sl_dist if side == "LONG" else entry + sl_dist
-    tp_dist  = sl_dist * rr
-    tp_px    = entry + tp_dist if side == "LONG" else entry - tp_dist
-
-    # 4. размер позиции
-    kelly_coin = kelly_size(win_rate, avg_rr, equity, entry)
-    sl_dist = max(atr * atr_mult, entry * 0.001)          # защита от 0
-    max_risk_coin = risk_amt / sl_dist
-    size = min(kelly_coin, max_risk_coin)
-    # после строки size = min(kelly_coin, max_risk_coin)
-
-    # минимальный шаг лота (пример, берём из настроек или 0.001)
-    lot_step = getattr(CONFIG, "LOT_STEP", 0.001)
-    size = round(size / lot_step) * lot_step
-    size = max(size, lot_step)        # не меньше минимального       
-
-    # 5. частичный тейк
     partial_qty = size * CONFIG.PARTIAL_TP
-    return Sizing(size, sl_px, tp_px, partial_qty)
+    return Sizing(size, risk_amt, sl_px, tp_px, partial_qty, atr)
 
-# ------------------------------ стоп-аут ------------------------------
-def max_drawdown_stop(current_equity: float, peak: float) -> bool:
-    if peak <= 0:
-        return False
-    dd = (peak - current_equity) / peak * 100
-    return dd > CONFIG.MAX_DD_STOP
+def get_min_lot(symbol: str):
+    SAFE_MIN = {
+        "DOGE-USDT": (7.0, 1.0),
+        "LTC-USDT": (0.1, 0.01),
+        "SHIB-USDT": (100000.0, 1000.0),
+        "SUI-USDT": (1.0, 1.0),
+        "BNB-USDT": (0.01, 0.001),
+        "XRP-USDT": (1.0, 1.0),
+    }
+    return SAFE_MIN.get(symbol, (1.0, 0.001))
