@@ -1,8 +1,7 @@
-aiohttp>=3.9
-ccxt==4.2.75
+aiohttp==3.9.5
+requests==2.31.0
 pandas==2.2.2
 numpy==1.26.4
-scikit-learn==1.5.2
-aiofiles>=23.0
-gunicorn==22.0.0
-fastapi==0.115.0
+scikit-learn==1.4.2
+joblib==1.4.2
+python-dotenv==1.0.1
