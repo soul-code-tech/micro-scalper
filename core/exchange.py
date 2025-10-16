@@ -62,8 +62,14 @@ class BingXAsync:
         return {}
 
     async def klines(self, symbol: str, tf: str = "15m", limit: int = 50):
+        # параметры всегда в query, даже при signed=False
         params = {"symbol": symbol, "interval": tf, "limit": limit}
-        return await self._request("GET", "/openApi/swap/v2/quote/klines", params, signed=False)
+        url = f"{self.base}/openApi/swap/v2/quote/klines?{self._sign(params, signed=False)}"
+        async with self.sess.get(url) as r:
+            js = await r.json()
+            if js.get("code") != 0:
+                raise RuntimeError(f"BingX error: {js}")
+            return js["data"]
 
     async def place_order(self, symbol: str, side: str, qty: float, px: float, pos_side: str):
         params = {
