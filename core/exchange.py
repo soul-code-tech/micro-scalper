@@ -3,6 +3,7 @@ import hmac
 import time
 import hashlib
 import aiohttp
+from config import CONFIG   # <-- добавьте эту строку
 
 class BingXAsync:
     def __init__(self, api_key: str, secret: str):
