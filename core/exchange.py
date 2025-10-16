@@ -11,8 +11,6 @@ logger = logging.getLogger()
 
 async def get_balance(self) -> float:
     raw = await self._request("GET", "/openApi/swap/v2/user/balance")
-    print(f"DEBUG get_balance: {type(raw)} → {raw}", file=sys.stderr, flush=True)
-    # BingX возвращает {"balance": {...}}, а не список
     balance_info = raw.get("balance", {})
     if isinstance(balance_info, dict) and balance_info.get("asset") == "USDT":
         return float(balance_info.get("availableMargin", 0))
