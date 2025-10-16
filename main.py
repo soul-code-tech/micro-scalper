@@ -38,11 +38,22 @@ async def main():
         signal.signal(sig, lambda *_: asyncio.create_task(shutdown()))
 
     async with BingXAsync(CONFIG.API_KEY, CONFIG.SECRET_KEY) as ex:
-        await ex.set_leverage(CONFIG.SYMBOLS[0], CONFIG.LEVERAGE)   # один раз
-        state = load_state()
-        for s in CONFIG.SYMBOLS:
-            await ex.cancel_all(s)                                # чистый старт
+        # 1. Устанавливаем плечо 1 раз на каждый символ/сторону (игнорим ошибки)
+        for symbol in CONFIG.SYMBOLS:
+            for side in ("LONG", "SHORT"):
+                try:
+                    await ex.set_leverage(symbol, CONFIG.LEVERAGE, side)
+                except RuntimeError as e:
+                    # 109415 «already set» или 429 – не критично
+                    if "already set" in str(e) or "429" in str(e):
+                        continue
+                    raise
 
+        # 2. Чистим ордера при старте
+        for symbol in CONFIG.SYMBOLS:
+            await ex.cancel_all(symbol)
+
+        # 3. Основной цикл
         while not SHUTDOWN:
             try:
                 equity = await ex.get_balance()
