@@ -15,3 +15,5 @@ def save_state(state: dict):
 
 class GridManager:
     def __init__(self, symbol: str, center: float):
+    self.symbol = symbol
+    self.center = center
