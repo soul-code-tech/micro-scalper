@@ -83,5 +83,6 @@ class BingXAsync:
     async def cancel_all(self, symbol: str):
         await self._request("DELETE", "/openApi/swap/v2/trade/allOpenOrders", {"symbol": symbol})
 
-    async def set_leverage(self, symbol: str, leverage: int):
-        await self._request("POST", "/openApi/swap/v2/trade/leverage", {"symbol": symbol, "leverage": str(leverage)})
+    async def set_leverage(self, symbol: str, leverage: int, side: str = "LONG"):
+        await self._request("POST", "/openApi/swap/v2/trade/leverage",
+                            {"symbol": symbol, "leverage": str(leverage), "side": side})
