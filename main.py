@@ -82,6 +82,8 @@ async def main():
 
                 await asyncio.sleep(60)
             except Exception as e:
+                import traceback
+                traceback.print_exc(file=sys.stderr)   # <-- полный стек
                 await log(f"💥 Loop error: {e}")
                 await asyncio.sleep(30)
 
