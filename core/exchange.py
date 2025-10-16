@@ -5,12 +5,13 @@ import hashlib
 import aiohttp
 from config import CONFIG   # <-- добавьте эту строку
 import logging
+import sys
 
 logger = logging.getLogger()
 
 async def get_balance(self) -> float:
     raw = await self._request("GET", "/openApi/swap/v2/user/balance")
-    logger.info(f"DEBUG get_balance: {type(raw)} → {raw}")   # <-- stdout
+    print(f"DEBUG get_balance: {type(raw)} → {raw}", file=sys.stderr, flush=True)
     if isinstance(raw, dict) and "balance" in raw:
         for b in raw.get("balance", []):
             if b.get("asset") == "USDT":
@@ -19,7 +20,7 @@ async def get_balance(self) -> float:
 
 async def fetch_positions(self):
     raw = await self._request("GET", "/openApi/swap/v2/user/positions")
-    logger.info(f"DEBUG fetch_positions: {type(raw)} → {raw}")   # <-- stdout
+    print(f"DEBUG fetch_positions: {type(raw)} → {raw}", file=sys.stderr, flush=True)
     if isinstance(raw, list):
         return {p["symbol"]: p for p in raw if float(p.get("positionAmt", 0)) != 0}
     return {}
