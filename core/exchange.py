@@ -62,9 +62,8 @@ class BingXAsync:
         return {}
 
     async def klines(self, symbol: str, tf: str = "15m", limit: int = 50):
-        # параметры всегда в query, даже при signed=False
-        params = {"symbol": symbol, "interval": tf, "limit": limit}
-        url = f"{self.base}/openApi/swap/v2/quote/klines?{self._sign(params, signed=False)}"
+        # без подписи, параметры в query-string
+        url = f"{self.base}/openApi/swap/v2/quote/klines?symbol={symbol}&interval={tf}&limit={limit}"
         async with self.sess.get(url) as r:
             js = await r.json()
             if js.get("code") != 0:
