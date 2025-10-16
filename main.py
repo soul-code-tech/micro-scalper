@@ -3,6 +3,7 @@ import os
 import asyncio
 import signal
 import pandas as pd
+import sys
 from config        import CONFIG, validate_env
 from core.exchange import BingXAsync
 from core.grid_manager import GridManager, load_state, save_state
@@ -70,10 +71,10 @@ async def main():
                         await ACTIVE_GRIDS[symbol].update(ex)
                         continue
 
-                    if not is_sideways(symbol, ex):                  # фильтр
+                    if not await is_sideways(symbol, ex):   # <-- добавьте await                  # фильтр
                         continue
 
-                    center = float((await ex.klines(symbol, "15m", 1))[-1][4])
+                    center = float((await ex.klines(symbol, "15m", 1))[0][4])
                     grid   = GridManager(symbol, center, equity)
                     if await grid.deploy(ex):
                         ACTIVE_GRIDS[symbol] = grid
