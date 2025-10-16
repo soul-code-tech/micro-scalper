@@ -44,13 +44,13 @@ class BingXAsync:
 
     # ---------- API ----------
     async def get_balance(self) -> float:
-    data = await self._request("GET", "/openApi/swap/v2/user/balance")
-    print("DEBUG get_balance:", data)   # <-- добавьте временно
-    if isinstance(data, dict) and "balance" in data:
-        for b in data.get("balance", []):
-            if b.get("asset") == "USDT":
-                return float(b.get("availableMargin", 0))
-    return 0.0
+        data = await self._request("GET", "/openApi/swap/v2/user/balance")
+        print("DEBUG get_balance:", data)   # <-- добавьте временно
+        if isinstance(data, dict) and "balance" in data:
+            for b in data.get("balance", []):
+                if b.get("asset") == "USDT":
+                    return float(b.get("availableMargin", 0))
+        return 0.0
 
     async def fetch_positions(self):
         data = await self._request("GET", "/openApi/swap/v2/user/positions")
