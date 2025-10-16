@@ -1,9 +1,5 @@
-import logging
 from telegram import Bot
 from config import CONFIG
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
-logger = logging.getLogger()
 
 bot = Bot(CONFIG.TELEGRAM_TOKEN) if CONFIG.TELEGRAM_TOKEN else None
 
