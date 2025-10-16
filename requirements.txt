@@ -1,6 +1,0 @@
-# ---------- Jesse core ----------
-jesse>=1.10.10
-# ---------- BingX connector ----------
-git+https://github.com/jesse-ai/jesse-bingx.git@main
-# ---------- мелочь ----------
-python-dotenv
