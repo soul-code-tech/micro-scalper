@@ -12,15 +12,16 @@ logger = logging.getLogger()
 async def get_balance(self) -> float:
     raw = await self._request("GET", "/openApi/swap/v2/user/balance")
     print(f"DEBUG get_balance: {type(raw)} → {raw}", file=sys.stderr, flush=True)
-    if isinstance(raw, dict) and "balance" in raw:
-        for b in raw.get("balance", []):
-            if b.get("asset") == "USDT":
-                return float(b.get("availableMargin", 0))
+    # BingX возвращает {"balance": {...}}, а не список
+    balance_info = raw.get("balance", {})
+    if isinstance(balance_info, dict) and balance_info.get("asset") == "USDT":
+        return float(balance_info.get("availableMargin", 0))
     return 0.0
 
 async def fetch_positions(self):
     raw = await self._request("GET", "/openApi/swap/v2/user/positions")
     print(f"DEBUG fetch_positions: {type(raw)} → {raw}", file=sys.stderr, flush=True)
+    # BingX возвращает список или пустой список
     if isinstance(raw, list):
         return {p["symbol"]: p for p in raw if float(p.get("positionAmt", 0)) != 0}
     return {}
