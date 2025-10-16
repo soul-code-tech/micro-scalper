@@ -14,4 +14,4 @@ def save_state(state: dict):
         json.dump(state, f)
 
 class GridManager:
-    def __init__(self, symbol: str, center
+    def __init__(self, symbol: str, center)
