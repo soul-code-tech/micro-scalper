@@ -44,16 +44,20 @@ class BingXAsync:
 
     # ---------- API ----------
     async def get_balance(self) -> float:
-        data = await self._request("GET", "/openApi/swap/v2/user/balance")
+    data = await self._request("GET", "/openApi/swap/v2/user/balance")
+    print("DEBUG get_balance:", data)   # <-- добавьте временно
+    if isinstance(data, dict) and "balance" in data:
         for b in data.get("balance", []):
-            if b["asset"] == "USDT":
-                return float(b["availableMargin"])
-        return 0.0
+            if b.get("asset") == "USDT":
+                return float(b.get("availableMargin", 0))
+    return 0.0
 
     async def fetch_positions(self):
         data = await self._request("GET", "/openApi/swap/v2/user/positions")
-        return {p["symbol"]: p for p in data if float(p.get("positionAmt", 0)) != 0}
-
+        print("DEBUG fetch_positions:", data)   # <-- добавьте временно
+        if isinstance(data, list):
+            return {p["symbol"]: p for p in data if float(p.get("positionAmt", 0)) != 0}
+        return {}
     async def klines(self, symbol: str, tf: str = "15m", limit: int = 50):
         params = {"symbol": symbol, "interval": tf, "limit": limit}
         return await self._request("GET", "/openApi/swap/v2/quote/klines", params, signed=False)
