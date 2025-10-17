@@ -13,5 +13,6 @@ def adx(high, low, close, period=14):
     return dx.rolling(period).mean().iloc[-1] if len(dx) >= period * 2 else 0.0
 
 def atr_percent(high, low, close, period=14):
+    tr = pd.concat([high - low, abs(high - close.shift()), abs(low - close.shift())], axis=1).max(axis=1)
     atr = tr.rolling(period).mean().iloc[-1] if len(close) >= period else 0.0
     return atr / close.iloc[-1] if close.iloc[-1] else 0.0
