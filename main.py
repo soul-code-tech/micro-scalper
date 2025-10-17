@@ -31,7 +31,7 @@ async def is_sideways(symbol: str, ex: BingXAsync) -> bool:
 async def shutdown():
     global SHUTDOWN
     SHUTDOWN = True
-    await log("🛑 Graceful shutdown …")
+    print("🛑 Graceful shutdown …", flush=True)
     for sym in list(ACTIVE_GRIDS):
         await ACTIVE_GRIDS[sym].emergency_close_now()
     save_state({})
@@ -102,7 +102,7 @@ async def main():
                 print(f"💥 Loop error: {e}", flush=True)
                 await asyncio.sleep(30)
 
-        await log("👋 Bot stopped")
+        print("👋 Bot stopped", flush=True)
 
 if __name__ == "__main__":
     for sig in (signal.SIGTERM, signal.SIGINT):
