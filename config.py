@@ -14,7 +14,7 @@ class Config:
     GRID_LEVELS      = 10
     RISK_PER_GRID    = 0.01           # 1 % equity на сетку
     LEVERAGE         = 5              # плечо для VST
-    ADX_THRESHOLD    = 25             # чуть выше = реже вход
+    ADX_THRESHOLD    = 20             # чуть выше = реже вход
     ATR_PCT_THRESHOLD= 0.003          # <0,3 % волатильность
     TP_PCT           = 0.012          # +1,2 %
     SL_PCT           = 0.018          # -1,8 %
