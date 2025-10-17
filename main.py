@@ -99,7 +99,7 @@ async def main():
             except Exception as e:
                 import traceback
                 traceback.print_exc(file=sys.stderr)
-                await log(f"💥 Loop error: {e}")
+                print(f"💥 Loop error: {e}", flush=True)
                 await asyncio.sleep(30)
 
         await log("👋 Bot stopped")
