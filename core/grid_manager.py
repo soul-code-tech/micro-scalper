@@ -20,10 +20,10 @@ class GridManager:
         self.center = center
         self.equity = equity
 
-    # ---------- deploy сетки ----------
+    # ---------- deploy сетки (с красивыми логами) ----------
     async def deploy(self, ex: BingXAsync):
-        await ex.cancel_all(self.symbol)                       # чистый старт
-        info      = await ex.get_contract_info(self.symbol)    # minQty, stepSize
+        await ex.cancel_all(self.symbol)
+        info      = await ex.get_contract_info(self.symbol)
         min_qty   = float(info["minQty"])
         step_size = float(info["stepSize"])
         price_prec = int(info["pricePrecision"])
@@ -32,8 +32,7 @@ class GridManager:
         step      = (2 * range_abs) / CONFIG.GRID_LEVELS
         qty_raw   = (self.equity * CONFIG.RISK_PER_GRID) / (CONFIG.GRID_LEVELS * self.center)
         qty       = max(min_qty, round(qty_raw / step_size) * step_size)
-        if qty * self.center < 0.5:                            # мин. номинал $0.5
-            print(f"⚠️  Too small equity for {self.symbol}", flush=True)
+        if qty * self.center < 0.5:
             return False
 
         state = load_state()
@@ -43,17 +42,16 @@ class GridManager:
             px_buy  = round(self.center - range_abs + i * step, price_prec)
             px_sell = round(px_buy + step * 0.8, price_prec)
 
-            # --- лог перед размещением ---
-            print(f"📤 PLACE {self.symbol} BUY  {qty}@{px_buy:.8f}  LONG",  flush=True)
-            print(f"📤 PLACE {self.symbol} SELL {qty}@{px_sell:.8f} SHORT", flush=True)
+            # --- красивые логи ---
+            log_buy(qty, px_buy, self.symbol)
+            log_sell(qty, px_sell, self.symbol)
 
             await ex.place_order(self.symbol, "BUY",  qty, px_buy,  "LONG")
             await ex.place_order(self.symbol, "SELL", qty, px_sell, "SHORT")
-
             state[self.symbol]["orders"].append({"buy": px_buy, "sell": px_sell})
 
         save_state(state)
-        print(f"✅ GRID DEPLOYED {self.symbol} {self.center:.8f}", flush=True)
+        print(f"✅  СЕТКА {self.symbol}  центр {self.center:.2f}", flush=True)
         return True
 
     # ---------- обновление / emergency ----------
