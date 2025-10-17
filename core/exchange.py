@@ -58,11 +58,9 @@ class BingXAsync:
         raw = await self._request("GET", "/openApi/swap/v2/user/positions")
         if not isinstance(raw, list):
             return {}
-        today_pnl = 0.0
-        for p in raw:
-            today_pnl += float(p.get("unrealizedProfit", 0))
-        if raw:
-            log_profit(today_pnl, 0.0, "PORTFOLIO")   # можно усилить %
+        # просто считаем итог без лишнего вывода
+        today_pnl = sum(float(p.get("unrealizedProfit", 0)) for p in raw)
+        # убираем лог – оставляем только return
         return {p["symbol"]: p for p in raw if float(p.get("positionAmt", 0)) != 0}
 
     async def klines(self, symbol: str, tf: str = "15m", limit: int = 50):
