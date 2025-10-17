@@ -9,7 +9,7 @@ class Config:
     BASE_URL     = "https://open-api.bingx.io"   # без пробелов!
 
     # ==== Торговые параметры ==== #
-    SYMBOLS          = ["BTC-USDT", "ETH-USDT", "SOL-USDT"]
+    SYMBOLS          = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "SHIB-USDT", "DOG-USDT", "ARB-USDT", "BNB-USDT"]
     GRID_RANGE_PCT   = 0.015          # ±1,5 %
     GRID_LEVELS      = 10
     RISK_PER_GRID    = 0.01           # 1 % equity на сетку
