@@ -80,8 +80,9 @@ class BingXAsync:
             "quantity": f"{qty:.8f}",
             "positionSide": pos_side
         }
-        return await self._request("POST", "/openApi/swap/v2/trade/order", params)
-
+        res = await self._request("POST", "/openApi/swap/v2/trade/order", params)
+        print(f"✅ ORDER {side} {qty}@{px} {symbol} {pos_side}", file=sys.stderr, flush=True)
+        return res
     async def close_position(self, symbol: str, side: str, qty: float):
         params = {
             "symbol": symbol,
