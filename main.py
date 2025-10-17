@@ -4,6 +4,7 @@ import asyncio
 import signal
 import pandas as pd
 import sys
+import time
 from config        import CONFIG, validate_env
 from core.exchange import BingXAsync
 from core.grid_manager import GridManager, load_state, save_state
@@ -14,6 +15,7 @@ from health        import start_health
 ACTIVE_GRIDS = {}
 LAST_DEPLOY  = {}
 SHUTDOWN     = False
+TICK_SEC     = 10          # ← минимальный шаг между проверками
 
 # ---------- фильтр боковика ----------
 async def is_sideways(symbol: str, ex: BingXAsync) -> bool:
@@ -34,14 +36,14 @@ async def shutdown():
         await ACTIVE_GRIDS[sym].emergency_close_now()
     save_state({})
 
-# ---------- основной цикл ----------
+# ---------- основной цикл (последовательно, 10 с) ----------
 async def main():
     validate_env()
     await start_health()
-    print("🚀 BingX-VST-Grid started", flush=True)
+    print("🚀 BingX-VST-Grid started (10 s tick)", flush=True)
 
     async with BingXAsync(CONFIG.API_KEY, CONFIG.SECRET_KEY) as ex:
-        # 1. Устанавливаем плечо 1 раз на каждый символ/сторону
+        # 1. Плечо 1 раз
         for symbol in CONFIG.SYMBOLS:
             for side in ("LONG", "SHORT"):
                 try:
@@ -51,31 +53,36 @@ async def main():
                         continue
                     raise
 
-        # 2. Чистим ордера при старте
+        # 2. Чистый старт
         for symbol in CONFIG.SYMBOLS:
             await ex.cancel_all(symbol)
 
-        # 3. Основной цикл
+        # 3. Цикл «по одному, не чаще 10 с»
         while not SHUTDOWN:
             try:
                 equity   = await ex.get_balance()
                 positions = await ex.fetch_positions()
 
-                # --- лог каждого символа ---
                 for symbol in CONFIG.SYMBOLS:
+                    if SHUTDOWN: break
                     print(f"🔍 CHECK {symbol}", flush=True)
+
+                    # --- уже работает ---
                     if symbol in ACTIVE_GRIDS:
                         await ACTIVE_GRIDS[symbol].update(ex)
                         continue
+
+                    # --- фильтр боковика ---
                     if not await is_sideways(symbol, ex):
                         print(f"⏭️  SKIP {symbol} (not sideways)", flush=True)
                         continue
 
-                    # --- новая сетка ---
+                    # --- 4-часовой дедуп ---
                     now = asyncio.get_event_loop().time()
                     if symbol in LAST_DEPLOY and now - LAST_DEPLOY[symbol] < 4 * 3600:
                         continue
 
+                    # --- центр и деплой ---
                     center = float((await ex.klines(symbol, "15m", 1))[0][4])
                     grid   = GridManager(symbol, center, equity)
                     if await grid.deploy(ex):
@@ -83,9 +90,11 @@ async def main():
                         LAST_DEPLOY[symbol]  = now
                         await log(f"✅ Grid deployed for {symbol} @ {center:.6f}")
 
-                    await asyncio.sleep(1)          # не спамим биржу
+                    # --- ждём 10 секунд между символами ---
+                    await asyncio.sleep(TICK_SEC)
 
-                await asyncio.sleep(60)             # 1 цикл в минуту
+                # --- после цикла по символам – ещё 10 с ---
+                await asyncio.sleep(TICK_SEC)
 
             except Exception as e:
                 import traceback
@@ -98,7 +107,4 @@ async def main():
 if __name__ == "__main__":
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: asyncio.create_task(shutdown()))
-    asyncio.run(main())
-
-if __name__ == "__main__":
     asyncio.run(main())
