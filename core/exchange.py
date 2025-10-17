@@ -56,10 +56,14 @@ class BingXAsync:
 
     async def fetch_positions(self):
         raw = await self._request("GET", "/openApi/swap/v2/user/positions")
-        print(f"DEBUG fetch_positions: {type(raw)} → {raw}", file=sys.stderr, flush=True)
-        if isinstance(raw, list):
-            return {p["symbol"]: p for p in raw if float(p.get("positionAmt", 0)) != 0}
-        return {}
+        if not isinstance(raw, list):
+            return {}
+        today_pnl = 0.0
+        for p in raw:
+            today_pnl += float(p.get("unrealizedProfit", 0))
+        if raw:
+            log_profit(today_pnl, 0.0, "PORTFOLIO")   # можно усилить %
+        return {p["symbol"]: p for p in raw if float(p.get("positionAmt", 0)) != 0}
 
     async def klines(self, symbol: str, tf: str = "15m", limit: int = 50):
         # без подписи, параметры в query-string
